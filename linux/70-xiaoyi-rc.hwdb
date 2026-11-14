@@ -1,0 +1,3 @@
+# XiaoYi_RC BT remote: big button (vol up) -> play/pause
+evdev:input:b0005v00D2p0580*
+ KEYBOARD_KEY_c00e9=playpause
