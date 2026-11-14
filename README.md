@@ -37,3 +37,8 @@ Remap with `linux/70-xiaoyi-rc.hwdb` → `/etc/udev/hwdb.d/`, then
 
 A UMDF filter driver that trims the descriptor before `hidclass` parses it.
 See `docs/adr/` for the decisions and `.tasks/` for the work.
+
+Build with `.\build.ps1` (needs VS Build Tools 2026 with the C++ tools,
+Spectre-mitigated libs and the "Windows Driver Kit" build-tools component;
+the WDK and SDK come from NuGet). The package lands in
+`build\Release\xiaoyi-rc\`.

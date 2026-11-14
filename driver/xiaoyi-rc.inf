@@ -1,0 +1,66 @@
+; xiaoyi-rc.inf - in-box HidOverGatt stack for the XiaoYi_RC remote with a
+; UMDF filter on top that trims the padded HID report descriptor (ADR 2).
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = HIDClass
+ClassGuid   = {745a17a0-74d3-11d0-b6fe-00a0c90f57da}
+Provider    = %ProviderName%
+CatalogFile = xiaoyi-rc.cat
+DriverVer   =
+PnpLockdown = 1
+
+[SourceDisksNames]
+1 = %DiskName%
+
+[SourceDisksFiles]
+xiaoyi-rc.dll = 1
+
+[DestinationDirs]
+DefaultDestDir = 13
+
+[Manufacturer]
+%ProviderName% = Models,NTamd64.10.0...17134
+
+[Models.NTamd64.10.0...17134]
+%DeviceDesc% = XiaoYiRc, BTHLEDevice\{00001812-0000-1000-8000-00805f9b34fb}_Dev_VID&0100d2_PID&0580
+
+[XiaoYiRc.NT]
+Include  = hidbthle.inf
+Needs    = HidBthLE.NT
+CopyFiles = XiaoYiRc.CopyFiles
+
+[XiaoYiRc.NT.hw]
+Include = hidbthle.inf
+Needs   = HidBthLE.NT.hw
+
+[XiaoYiRc.NT.Services]
+Include = hidbthle.inf
+Needs   = HidBthLE.NT.Services
+
+[XiaoYiRc.NT.Wdf]
+UmdfService                 = XiaoYiRcFilter, XiaoYiRcFilter_Install
+UmdfService                 = HidOverGatt, HidOverGatt_Install
+UmdfServiceOrder            = XiaoYiRcFilter, HidOverGatt
+UmdfKernelModeClientPolicy  = AllowKernelModeClients
+UmdfFileObjectPolicy        = AllowNullAndUnknownFileObjects
+UmdfFsContextUsePolicy      = CanUseFsContext2
+UmdfHostPriority            = PriorityHigh
+UmdfMethodNeitherAction     = Copy
+
+[XiaoYiRcFilter_Install]
+UmdfLibraryVersion = $UMDFVERSION$
+ServiceBinary      = %13%\xiaoyi-rc.dll
+
+; Same as HidBthLE_Install in hidbthle.inf.
+[HidOverGatt_Install]
+UmdfLibraryVersion = 2.15.0
+ServiceBinary      = "%12%\UMDF\Microsoft.Bluetooth.Profiles.HidOverGatt.dll"
+
+[XiaoYiRc.CopyFiles]
+xiaoyi-rc.dll
+
+[Strings]
+ProviderName = "xiaoyi-rc-win"
+DiskName     = "xiaoyi-rc-win driver package"
+DeviceDesc   = "XiaoYi_RC Bluetooth remote (HID over GATT)"

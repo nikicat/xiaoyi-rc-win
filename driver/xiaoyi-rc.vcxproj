@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <KitVersion>10.0.28000.2526</KitVersion>
+    <PackagesDir>$(MSBuildThisFileDirectory)..\packages\</PackagesDir>
+  </PropertyGroup>
+  <Import Project="$(PackagesDir)Microsoft.Windows.SDK.CPP.$(KitVersion)\build\native\Microsoft.Windows.SDK.cpp.props" />
+  <Import Project="$(PackagesDir)Microsoft.Windows.SDK.CPP.x64.$(KitVersion)\build\native\Microsoft.Windows.SDK.cpp.x64.props" />
+  <Import Project="$(PackagesDir)Microsoft.Windows.WDK.x64.$(KitVersion)\build\native\Microsoft.Windows.WDK.x64.props" />
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{6E0B2F4C-3A8D-4C1E-9F27-5B1D8A4E7C30}</ProjectGuid>
+    <RootNamespace>xiaoyi_rc</RootNamespace>
+    <ProjectName>xiaoyi-rc</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries Condition="'$(Configuration)' == 'Debug'">true</UseDebugLibraries>
+    <UseDebugLibraries Condition="'$(Configuration)' == 'Release'">false</UseDebugLibraries>
+    <PlatformToolset>WindowsUserModeDriver10.0</PlatformToolset>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <DriverType>UMDF</DriverType>
+    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <UMDF_VERSION_MAJOR>2</UMDF_VERSION_MAJOR>
+    <UMDF_VERSION_MINOR>15</UMDF_VERSION_MINOR>
+    <SignMode>Off</SignMode>
+    <!-- stampinf dates DriverVer in local time; east of UTC that is "the future" -->
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <OutDir>$(MSBuildThisFileDirectory)..\build\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildThisFileDirectory)..\build\obj\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <AdditionalIncludeDirectories>$(KM_IncludePath);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="driver.c" />
+    <ClCompile Include="trim.c" />
+    <ClInclude Include="trim.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Inf Include="xiaoyi-rc.inf" />
+  </ItemGroup>
+  <ItemGroup>
+    <FilesToPackage Include="$(TargetPath)" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(PackagesDir)Microsoft.Windows.SDK.CPP.$(KitVersion)\build\native\Microsoft.Windows.SDK.cpp.targets" />
+</Project>
