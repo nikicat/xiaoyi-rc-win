@@ -42,3 +42,15 @@ Build with `.\build.ps1` (needs VS Build Tools 2026 with the C++ tools,
 Spectre-mitigated libs and the "Windows Driver Kit" build-tools component;
 the WDK and SDK come from NuGet). The package lands in
 `build\Release\xiaoyi-rc\`.
+
+Install from an elevated PowerShell with `.\install.ps1`. It creates a
+self-signed code-signing certificate (`CN=xiaoyi-rc-win test signing`,
+private key non-exportable in `CurrentUser\My`), trusts it in
+`LocalMachine\Root` and `LocalMachine\TrustedPublisher`, signs the catalog
+and runs `pnputil /add-driver … /install`. No re-pairing is needed: the
+remote's Device Manager entry starts with no error, and once the remote
+connects the big button is Volume Up and the small one Volume Down.
+
+To uninstall: `pnputil /enum-drivers` to find the `oemNN.inf` whose original
+name is `xiaoyi-rc.inf`, then `pnputil /delete-driver oemNN.inf /uninstall`,
+and delete the certificate from those three stores.

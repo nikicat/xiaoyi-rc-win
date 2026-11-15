@@ -41,7 +41,8 @@ Needs   = HidBthLE.NT.Services
 [XiaoYiRc.NT.Wdf]
 UmdfService                 = XiaoYiRcFilter, XiaoYiRcFilter_Install
 UmdfService                 = HidOverGatt, HidOverGatt_Install
-UmdfServiceOrder            = XiaoYiRcFilter, HidOverGatt
+; Loaded left to right, bottom of the stack first: the filter goes last.
+UmdfServiceOrder            = HidOverGatt, XiaoYiRcFilter
 UmdfKernelModeClientPolicy  = AllowKernelModeClients
 UmdfFileObjectPolicy        = AllowNullAndUnknownFileObjects
 UmdfFsContextUsePolicy      = CanUseFsContext2

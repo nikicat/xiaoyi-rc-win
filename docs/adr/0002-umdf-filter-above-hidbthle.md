@@ -1,6 +1,6 @@
 # 2. UMDF filter above HidBthLE, trimming trailing zeros
 
-Status: accepted (stack verified on Windows 11 26100, task T774wm)
+Status: accepted (verified working on Windows 11 26100, tasks T774wm, T8mxjb)
 
 ## Context
 
@@ -30,8 +30,10 @@ every start and no re-pairing is needed after installing the filter.
 
 ## Decision
 
-- **Placement:** a UMDF 2 filter in the same UMDF stack, above `HidOverGatt`
-  (listed first in `UmdfServiceOrder`). A kernel filter does not work
+- **Placement:** a UMDF 2 filter in the same UMDF stack, above `HidOverGatt`.
+  `UmdfServiceOrder` is loaded left to right from the bottom of the stack,
+  so the filter is listed *last*: `HidOverGatt, XiaoYiRcFilter`. Listed
+  first, it sits below `HidOverGatt` and never sees the HID IOCTLs. A kernel filter does not work
   here: a lower filter under the devnode sees only the reflector's traffic,
   and an upper filter above `hidclass` never sees the descriptor IOCTLs.
 - **Framework:** UMDF 2, `UmdfLibraryVersion` no higher than the in-box
@@ -42,7 +44,7 @@ every start and no re-pairing is needed after installing the filter.
   devices. It `Include=`s `hidbthle.inf`, `Needs=` the `HidBthLE.NT`,
   `.hw` and `.Services` sections, and has its own `.Wdf` section that
   declares both services and sets
-  `UmdfServiceOrder = <ours>, HidOverGatt`. The in-box section already sets
+  `UmdfServiceOrder = HidOverGatt, <ours>`. The in-box section already sets
   `UmdfMethodNeitherAction = Copy`, which we keep so the filter can read
   the IOCTL buffers.
 - **Fix:** lowering `wReportLength` alone is not enough, because `hidclass`
@@ -56,4 +58,13 @@ every start and no re-pairing is needed after installing the filter.
     forwarding it.
   Trailing zeros are always safe to drop because a valid descriptor ends in
   End Collection (`0xC0`). On fixed firmware nothing is trimmed.
+  `mshidumdf` delivers the HID IOCTLs to the UMDF stack as regular device
+  control requests, and our own downward read is a regular IOCTL too (UMDF
+  cannot send internal ones).
 - **Everything else** passes through untouched.
+- **Diagnostics:** the filter records what it saw (original and trimmed
+  length, read status) as DWORDs under the devnode's
+  `Device Parameters\XiaoYiRcFilter` key.
+- **Child device:** as with any BLE HID device, the "HID-compliant consumer
+  control device" child only exists while the remote is connected, so a
+  sleeping remote shows the parent as OK with no child.
