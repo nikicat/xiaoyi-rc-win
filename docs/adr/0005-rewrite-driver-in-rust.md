@@ -1,6 +1,6 @@
 # 5. Rewrite the driver in Rust
 
-Status: proposed (not decided; hardening the C driver comes first, task Tq8vn5)
+Status: superseded by ADR 6 (safe WDF wrappers turned up in Microsoft's prototype `wdf` crate)
 
 ## Context
 

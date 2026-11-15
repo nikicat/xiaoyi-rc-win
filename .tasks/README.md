@@ -17,6 +17,7 @@ including those of deleted tasks. In references the id is written `T7kq2x`
 status: todo                 # todo | doing | blocked
 deps: [Tc9wdr, other-repo#Tm3xaj]   # optional; other-repo = same-owner repo name, or owner/repo
 due: 2026-11-07              # optional
+milestone: M1                # optional; defined in the ADR that plans them
 tags: [backend]              # optional
 ---
 # Title

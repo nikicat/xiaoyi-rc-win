@@ -5,20 +5,15 @@ tags: [windows, driver, ci]
 # Catch memory bugs in the C driver with sanitizers, fuzzing and analysis
 
 ## Goal
-Find buffer overruns and misuse of WDF objects in `driver/` before they
-ship, without rewriting the driver (ADR 5, option 3).
+Find buffer overruns and misuse of WDF objects in `driver/` for the
+releases that still ship the C driver. The Rust port (ADR 6) replaces it at
+milestone M4, so only the cheap checks are left here; fuzzing moved to the
+Rust modules (Tab1n4).
 
 ## Next
 - **AddressSanitizer:** build `tests\trim_test` and `tests\remap_test` with
   `cl /fsanitize=address /Zi` in `build.ps1` (or in a separate CI step, if the
   ASan runtime is slow or not on the runner).
-- **Fuzzing:** add libFuzzer targets, built with `cl /fsanitize=fuzzer,address`:
-  - `RemapIsPress` and `RemapReport` on arbitrary bytes and lengths, with
-    random maps from `RemapSet`;
-  - `TrimReportDescriptor` on arbitrary descriptors.
-
-  Seed them with `docs/report-map.bin` and the reports measured in ADR 2. Run
-  each for a fixed time in CI, and commit any crash input as a regression test.
 - **Static analysis:** turn on `/analyze` (the WDK's driver rule set) in the
   vcxproj with warnings as errors, and add a CodeQL job for C/C++ to
   `.github/workflows/build.yml`, with its actions pinned by hash.

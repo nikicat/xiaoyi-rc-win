@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: todo
 deps: [Tr4hq7]
 tags: [windows, driver]
 ---
