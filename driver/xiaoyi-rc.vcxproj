@@ -51,7 +51,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="driver.c" />
+    <ClCompile Include="remap.c" />
     <ClCompile Include="trim.c" />
+    <ClInclude Include="remap.h" />
     <ClInclude Include="trim.h" />
   </ItemGroup>
   <ItemGroup>

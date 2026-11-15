@@ -51,6 +51,13 @@ and runs `pnputil /add-driver … /install`. No re-pairing is needed: the
 remote's Device Manager entry starts with no error, and once the remote
 connects the big button is Volume Up and the small one Volume Down.
 
+To change what the buttons send, run `.\configure.ps1` from an elevated
+PowerShell, for example `.\configure.ps1 Big=PlayPause`. Run it with no
+arguments to show the current mapping, or with `-Reset` to go back to the
+defaults. A change applies on the next press. The usages a button can send
+are the 19 in the remote's report; the script lists them if you give it an
+unknown name.
+
 To uninstall: `pnputil /enum-drivers` to find the `oemNN.inf` whose original
 name is `xiaoyi-rc.inf`, then `pnputil /delete-driver oemNN.inf /uninstall`,
 and delete the certificate from those three stores.

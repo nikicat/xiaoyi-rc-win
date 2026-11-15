@@ -27,9 +27,13 @@ if ($LASTEXITCODE) { throw "driver build failed" }
 
 $testDir = Join-Path $root "build\test"
 New-Item -ItemType Directory -Force $testDir | Out-Null
-cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && cl /nologo /W4 /WX /Fe`"$testDir\trim_test.exe`" /Fo`"$testDir\\`" `"$root\tests\trim_test.c`" `"$root\driver\trim.c`""
-if ($LASTEXITCODE) { throw "test build failed" }
+foreach ($t in @(@('trim_test', 'trim.c'), @('remap_test', 'remap.c'))) {
+    cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && cl /nologo /W4 /WX /Fe`"$testDir\$($t[0]).exe`" /Fo`"$testDir\\`" `"$root\tests\$($t[0]).c`" `"$root\driver\$($t[1])`""
+    if ($LASTEXITCODE) { throw "$($t[0]) build failed" }
+}
 & "$testDir\trim_test.exe" (Join-Path $root 'docs\report-map.bin')
 if ($LASTEXITCODE) { throw "trim test failed" }
+& "$testDir\remap_test.exe"
+if ($LASTEXITCODE) { throw "remap test failed" }
 
 Write-Host "Package: $(Join-Path $root "build\$Configuration\xiaoyi-rc")"

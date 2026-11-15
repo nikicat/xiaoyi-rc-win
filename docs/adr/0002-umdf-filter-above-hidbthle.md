@@ -68,3 +68,22 @@ every start and no re-pairing is needed after installing the filter.
 - **Child device:** as with any BLE HID device, the "HID-compliant consumer
   control device" child only exists while the remote is connected, so a
   sleeping remote shows the parent as OK with no child.
+
+## Input reports (measured with `tools-src/hidlog.ps1`, task Tr4hq7)
+
+- Every report is 4 bytes, `03 xx 00 00`: big button = `0x40` (Volume Up,
+  bit 6), small = `0x80` (Volume Down, bit 7), both = `0xC0`. Each press is
+  exactly one "down" report and one all-zero "up" report.
+- **No repeats while held:** a 2 s hold is one down report, then the up
+  report 2.1 s later. Any repeat while holding comes from Windows, not the
+  remote.
+- **Wake press is not lost:** the press that wakes a sleeping remote arrives
+  about 100 ms after the reconnect.
+- **Timing is coarse:** reports arrive on BLE connection events, so a down
+  and its up can share a timestamp (0 ms press) and gaps are quantised to
+  ~50 ms. Fast clicks were 200-300 ms apart, press to press, with
+  release-to-next-press gaps of 0-55 ms.
+- **Both buttons:** reports `40`, `C0`, `80`, `00` with about 1 ms between
+  the first two, so "both" is two overlapping presses, not one event.
+- A user-mode reader (`ReadFile` on the consumer control collection) sees
+  the same reports while Windows acts on them.

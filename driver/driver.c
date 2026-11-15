@@ -4,7 +4,9 @@
 // which hidparse rejects. On IOCTL_HID_GET_DEVICE_DESCRIPTOR we read the
 // full report descriptor ourselves, trim the padding, and patch
 // wReportLength; IOCTL_HID_GET_REPORT_DESCRIPTOR is then answered from the
-// trimmed copy. Everything else is forwarded untouched.
+// trimmed copy. Input reports (IOCTL_HID_READ_REPORT) have their buttons
+// remapped per the RemapXXX registry values (see remap.h). Everything else
+// is forwarded untouched.
 
 #include <windows.h>
 #include <stdarg.h>
@@ -12,6 +14,7 @@
 #include <wdf.h>
 #include <hidport.h>
 
+#include "remap.h"
 #include "trim.h"
 
 #define MAX_REPORT_DESCRIPTOR 4096
@@ -51,6 +54,32 @@ static void Record(WDFDEVICE Device, PCWSTR Name, ULONG Value)
         WdfRegistryAssignULong(key, &name, Value);
         WdfRegistryClose(key);
     }
+}
+
+// Build the button map from DWORD values "Remap<usage hex>" = target usage
+// (0 = drop), e.g. RemapE9 = 0xCD sends Play/Pause for Volume Up. Read on
+// every press so changes apply without restarting the device.
+static void LoadRemap(WDFDEVICE Device, unsigned char Map[REMAP_BUTTONS])
+{
+    WDFKEY key;
+    WCHAR nameBuf[16];
+    UNICODE_STRING name;
+    ULONG target;
+    int i;
+
+    RemapInit(Map);
+    if (!NT_SUCCESS(WdfDeviceOpenRegistryKey(Device, PLUGPLAY_REGKEY_DEVICE | WDF_REGKEY_DEVICE_SUBKEY,
+                                             KEY_READ, WDF_NO_OBJECT_ATTRIBUTES, &key))) {
+        return;
+    }
+    for (i = 0; i < REMAP_BUTTONS; i++) {
+        swprintf_s(nameBuf, ARRAYSIZE(nameBuf), L"Remap%X", RemapUsages[i]);
+        RtlInitUnicodeString(&name, nameBuf);
+        if (NT_SUCCESS(WdfRegistryQueryULong(key, &name, &target))) {
+            RemapSet(Map, RemapUsages[i], target);
+        }
+    }
+    WdfRegistryClose(key);
 }
 
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
@@ -184,6 +213,40 @@ static void HandleGetReportDescriptor(WDFREQUEST Request, WDFIOTARGET Target, PF
     WdfRequestCompleteWithInformation(Request, status, NT_SUCCESS(status) ? Ctx->Length : 0);
 }
 
+static void ReadReportComplete(WDFREQUEST Request, WDFIOTARGET Target,
+                               PWDF_REQUEST_COMPLETION_PARAMS Params, WDFCONTEXT Context)
+{
+    WDFDEVICE device = WdfIoTargetGetDevice(Target);
+    NTSTATUS status = Params->IoStatus.Status;
+    ULONG_PTR length = Params->IoStatus.Information;
+    unsigned char map[REMAP_BUTTONS];
+    WDFMEMORY memory;
+    unsigned char *report;
+    size_t size;
+
+    UNREFERENCED_PARAMETER(Context);
+
+    if (NT_SUCCESS(status) && length >= REMAP_REPORT_SIZE &&
+        NT_SUCCESS(WdfRequestRetrieveOutputMemory(Request, &memory))) {
+        report = (unsigned char *)WdfMemoryGetBuffer(memory, &size);
+        // Release reports are all zero and need no remap or registry read.
+        if (size >= REMAP_REPORT_SIZE && (report[1] | report[2] | report[3])) {
+            LoadRemap(device, map);
+            RemapReport(map, report, (unsigned long)length);
+        }
+    }
+    WdfRequestCompleteWithInformation(Request, status, length);
+}
+
+static void ForwardReadReport(WDFREQUEST Request, WDFIOTARGET Target)
+{
+    WdfRequestFormatRequestUsingCurrentType(Request);
+    WdfRequestSetCompletionRoutine(Request, ReadReportComplete, WDF_NO_CONTEXT);
+    if (!WdfRequestSend(Request, Target, WDF_NO_SEND_OPTIONS)) {
+        WdfRequestComplete(Request, WdfRequestGetStatus(Request));
+    }
+}
+
 static void DispatchIoctl(WDFQUEUE Queue, WDFREQUEST Request, ULONG IoControlCode, BOOLEAN Internal)
 {
     WDFDEVICE device = WdfIoQueueGetDevice(Queue);
@@ -197,6 +260,9 @@ static void DispatchIoctl(WDFQUEUE Queue, WDFREQUEST Request, ULONG IoControlCod
         break;
     case IOCTL_HID_GET_REPORT_DESCRIPTOR:
         HandleGetReportDescriptor(Request, target, ctx);
+        break;
+    case IOCTL_HID_READ_REPORT:
+        ForwardReadReport(Request, target);
         break;
     default:
         ForwardAndForget(Request, target);
