@@ -1,4 +1,10 @@
+#include <string.h>
+
 #include "remap.h"
+
+// Bits of the last payload byte that carry no button.
+#define PADDING_MASK \
+    ((unsigned char)(0xFF & ~((1u << (REMAP_BUTTONS - 8 * (REMAP_PAYLOAD_SIZE - 1))) - 1)))
 
 const unsigned short RemapUsages[REMAP_BUTTONS] = {
     0x0B5, 0x0B6, 0x0B7, 0x0B8, 0x0CD, 0x0E2, 0x0E9, 0x0EA,   // next, prev, stop, eject, play/pause, mute, vol+, vol-
@@ -6,6 +12,21 @@ const unsigned short RemapUsages[REMAP_BUTTONS] = {
     0x221, 0x223, 0x224, 0x225,                               // AC search, home, back, forward
     0x226, 0x227, 0x22A,                                      // AC stop, refresh, bookmarks
 };
+
+static bool BitIsSet(const unsigned char *bits, int bit)
+{
+    return (bits[bit / 8] >> (bit % 8)) & 1;
+}
+
+static void SetBit(unsigned char *bits, int bit)
+{
+    bits[bit / 8] |= (unsigned char)(1 << (bit % 8));
+}
+
+static bool IsInputReport(const unsigned char *report, size_t len)
+{
+    return len >= REMAP_REPORT_SIZE && report[0] == REMAP_REPORT_ID;
+}
 
 int RemapUsageToBit(unsigned usage)
 {
@@ -19,48 +40,58 @@ int RemapUsageToBit(unsigned usage)
     return -1;
 }
 
-void RemapInit(unsigned char map[REMAP_BUTTONS])
+void RemapInit(REMAP_MAP *map)
 {
     int i;
 
     for (i = 0; i < REMAP_BUTTONS; i++) {
-        map[i] = REMAP_KEEP;
+        map->Target[i] = (unsigned char)i;
     }
 }
 
-int RemapSet(unsigned char map[REMAP_BUTTONS], unsigned from, unsigned to)
+bool RemapSet(REMAP_MAP *map, unsigned from, unsigned to)
 {
     int src = RemapUsageToBit(from);
-    int dst = to == 0 ? REMAP_DROP : RemapUsageToBit(to);
+    int dst = to == REMAP_USAGE_NONE ? REMAP_DROP : RemapUsageToBit(to);
 
     if (src < 0 || dst < 0) {
-        return 0;
+        return false;
     }
-    map[src] = (unsigned char)dst;
-    return 1;
+    map->Target[src] = (unsigned char)dst;
+    return true;
 }
 
-void RemapReport(const unsigned char map[REMAP_BUTTONS], unsigned char *report, unsigned long len)
+bool RemapIsPress(const unsigned char *report, size_t len)
 {
-    unsigned char in[3];
-    int i, dst;
+    int i;
 
-    if (len < REMAP_REPORT_SIZE || report[0] != REMAP_REPORT_ID) {
+    if (!IsInputReport(report, len)) {
+        return false;
+    }
+    for (i = 0; i < REMAP_BUTTONS; i++) {
+        if (BitIsSet(report + 1, i)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void RemapReport(const REMAP_MAP *map, unsigned char *report, size_t len)
+{
+    unsigned char *buttons = report + 1;
+    unsigned char in[REMAP_PAYLOAD_SIZE];
+    int i;
+
+    if (!IsInputReport(report, len)) {
         return;
     }
-    in[0] = report[1];
-    in[1] = report[2];
-    in[2] = report[3];
-    report[1] = report[2] = 0;
-    report[3] &= 0xF8;                  // keep the padding bits as they were
+    memcpy(in, buttons, REMAP_PAYLOAD_SIZE);
+    memset(buttons, 0, REMAP_PAYLOAD_SIZE - 1);
+    buttons[REMAP_PAYLOAD_SIZE - 1] &= PADDING_MASK;   // keep the padding bits as they were
 
     for (i = 0; i < REMAP_BUTTONS; i++) {
-        if (!(in[i / 8] & (1 << (i % 8)))) {
-            continue;
-        }
-        dst = map[i] == REMAP_KEEP ? i : map[i];
-        if (dst != REMAP_DROP) {
-            report[1 + dst / 8] |= (unsigned char)(1 << (dst % 8));
+        if (BitIsSet(in, i) && map->Target[i] != REMAP_DROP) {
+            SetBit(buttons, map->Target[i]);
         }
     }
 }

@@ -10,59 +10,62 @@ param([switch]$Reset, [Parameter(ValueFromRemainingArguments)] [string[]]$Set = 
 
 $ErrorActionPreference = 'Stop'
 
-# Usages the remote's report can carry, in report order (driver/remap.c).
-$usages = [ordered]@{
-    Next = 0x0B5; Previous = 0x0B6; Stop = 0x0B7; Eject = 0x0B8
-    PlayPause = 0x0CD; Mute = 0x0E2; VolumeUp = 0x0E9; VolumeDown = 0x0EA
-    MediaPlayer = 0x183; Mail = 0x18A; Calculator = 0x192; Browser = 0x194
-    Search = 0x221; Home = 0x223; Back = 0x224; Forward = 0x225
-    BrowserStop = 0x226; Refresh = 0x227; Bookmarks = 0x22A
-}
+. (Join-Path $PSScriptRoot 'remap.ps1')
 $buttons = [ordered]@{ Big = 0x0E9; Small = 0x0EA }   # what each physical button sends natively
 
 function Resolve-Usage([string]$name) {
-    if ($name -eq 'None') { return 0 }
-    $key = $usages.Keys | Where-Object { $_ -eq $name }
-    if (-not $key) { throw "Unknown usage '$name'. Use None or one of: $($usages.Keys -join ', ')" }
-    return $usages[$key]
+    if ($name -eq 'None') { return $usageNone }
+    if (-not $usages.Contains($name)) { throw "Unknown usage '$name'. Use None or one of: $($usages.Keys -join ', ')" }
+    return $usages[$name]
 }
 
+# Tells whether the driver's RemapSet (driver/remap.c) applies a stored target.
+function Test-RemapTarget([int]$usage) { return $usage -eq $usageNone -or $usages.Values -contains $usage }
+
 function Get-UsageName([int]$usage) {
-    if ($usage -eq 0) { return 'None' }
-    $key = $usages.Keys | Where-Object { $usages[$_] -eq $usage }
-    if ($key) { return $key }
-    return ('0x{0:X}' -f $usage)
+    if ($usage -eq $usageNone) { return 'None' }
+    return $usages.Keys | Where-Object { $usages[$_] -eq $usage }
 }
+
+# Parses one Button=Usage argument into the button's native usage and the usage it
+# should send instead. Errors when the button or the usage is unknown.
+function ConvertTo-Remap([string]$pair) {
+    $button, $usage = $pair -split '=', 2
+    if (-not $usage) { throw "Expected Button=Usage, got '$pair'" }
+    if (-not $buttons.Contains($button)) { throw "Unknown button '$button'. Use one of: $($buttons.Keys -join ', ')" }
+    return [pscustomobject]@{ Source = $buttons[$button]; Target = Resolve-Usage $usage }
+}
+
+$remaps = @($Set | ForEach-Object { ConvertTo-Remap $_ })
 
 $dev = Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -like 'BTHLEDEVICE\{00001812-*_DEV_VID&0100D2_PID&0580*' } |
     Select-Object -First 1
 if (-not $dev) { throw "The remote's HID service device was not found; is it paired?" }
-$keyPath = "HKLM:\SYSTEM\CurrentControlSet\Enum\$($dev.InstanceId)\Device Parameters\XiaoYiRcFilter"
-if (-not (Test-Path $keyPath)) { New-Item $keyPath | Out-Null }
+$keyPath = "HKLM:\SYSTEM\CurrentControlSet\Enum\$($dev.InstanceId)\Device Parameters\$parametersSubkey"
+
+if (($Reset -or $remaps.Count) -and -not (Test-Path $keyPath)) { New-Item $keyPath | Out-Null }
 
 if ($Reset) {
-    Get-Item $keyPath | Select-Object -ExpandProperty Property | Where-Object { $_ -like 'Remap*' } |
+    Get-Item $keyPath | Select-Object -ExpandProperty Property | Where-Object { Test-RemapValueName $_ } |
         ForEach-Object { Remove-ItemProperty $keyPath -Name $_ }
 }
 
-foreach ($pair in $Set) {
-    $from, $to = $pair -split '=', 2
-    if (-not $to) { throw "Expected Button=Usage, got '$pair'" }
-    $bkey = $buttons.Keys | Where-Object { $_ -eq $from }
-    $source = if ($bkey) { $buttons[$bkey] } else { Resolve-Usage $from }
-    $target = Resolve-Usage $to
-    $name = 'Remap{0:X}' -f $source
-    if ($target -eq $source) {
+foreach ($remap in $remaps) {
+    $name = Get-RemapValueName $remap.Source
+    if ($remap.Target -eq $remap.Source) {
         Remove-ItemProperty $keyPath -Name $name -ErrorAction SilentlyContinue
     } else {
-        New-ItemProperty $keyPath -Name $name -PropertyType DWord -Value $target -Force | Out-Null
+        New-ItemProperty $keyPath -Name $name -PropertyType DWord -Value $remap.Target -Force | Out-Null
     }
 }
 
-$props = Get-ItemProperty $keyPath
+$props = if (Test-Path $keyPath) { Get-ItemProperty $keyPath }
 foreach ($b in $buttons.Keys) {
-    $name = 'Remap{0:X}' -f $buttons[$b]
-    $value = $props.$name
-    $sends = if ($null -ne $value) { Get-UsageName $value } else { Get-UsageName $buttons[$b] }
+    $native = $buttons[$b]
+    $name = Get-RemapValueName $native
+    $stored = if ($props) { $props.$name }
+    $sends = if ($null -eq $stored) { Get-UsageName $native }
+        elseif (Test-RemapTarget $stored) { Get-UsageName $stored }
+        else { '{0} ({1} = 0x{2:X} ignored)' -f (Get-UsageName $native), $name, $stored }
     '{0,-6} -> {1}' -f $b, $sends
 }

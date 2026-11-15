@@ -38,18 +38,39 @@ Remap with `linux/70-xiaoyi-rc.hwdb` → `/etc/udev/hwdb.d/`, then
 A UMDF filter driver that trims the descriptor before `hidclass` parses it.
 See `docs/adr/` for the decisions and `.tasks/` for the work.
 
-Build with `.\build.ps1` (needs VS Build Tools 2026 with the C++ tools,
-Spectre-mitigated libs and the "Windows Driver Kit" build-tools component;
-the WDK and SDK come from NuGet). The package lands in
+### Install a release
+
+1. Download `xiaoyi-rc-win-<version>.zip` from the
+   [releases](https://github.com/nikicat/xiaoyi-rc-win/releases) page. CI
+   builds it (`.github/workflows/build.yml`).
+2. Unblock it before extracting, so Windows lets the scripts run:
+   `Unblock-File .\xiaoyi-rc-win-<version>.zip`.
+3. Extract it, then run `.\install.ps1` from an elevated PowerShell in the
+   extracted folder.
+
+The script trusts the release's certificate (`xiaoyi-rc.cer`,
+`CN=xiaoyi-rc-win release`) in `LocalMachine\Root` and
+`LocalMachine\TrustedPublisher`, then runs `pnputil /add-driver … /install`.
+CI creates that certificate for the one build and deletes its private key
+right after signing, so nobody can sign anything else with it (ADR 4).
+
+No re-pairing is needed. The remote's Device Manager entry starts with no
+error, and once the remote connects, the big button is Volume Up and the
+small one Volume Down.
+
+### Build from source
+
+Build with `.\build.ps1`. It needs VS Build Tools 2026 with the C++ tools,
+the Spectre-mitigated libs and the "Windows Driver Kit" build-tools
+component; the WDK and SDK come from NuGet. The package lands in
 `build\Release\xiaoyi-rc\`.
 
-Install from an elevated PowerShell with `.\install.ps1`. It creates a
-self-signed code-signing certificate (`CN=xiaoyi-rc-win test signing`,
-private key non-exportable in `CurrentUser\My`), trusts it in
-`LocalMachine\Root` and `LocalMachine\TrustedPublisher`, signs the catalog
-and runs `pnputil /add-driver … /install`. No re-pairing is needed: the
-remote's Device Manager entry starts with no error, and once the remote
-connects the big button is Volume Up and the small one Volume Down.
+`.\install.ps1`, from an elevated PowerShell, then signs and installs the
+package (`sign.ps1`). It uses a local certificate, `CN=xiaoyi-rc-win test
+signing`, whose private key is kept non-exportable in `CurrentUser\My`.
+`.\package.ps1 -Version <v>` builds the same zip CI does.
+
+### Configure and uninstall
 
 To change what the buttons send, run `.\configure.ps1` from an elevated
 PowerShell, for example `.\configure.ps1 Big=PlayPause`. Run it with no
@@ -60,4 +81,6 @@ unknown name.
 
 To uninstall: `pnputil /enum-drivers` to find the `oemNN.inf` whose original
 name is `xiaoyi-rc.inf`, then `pnputil /delete-driver oemNN.inf /uninstall`,
-and delete the certificate from those three stores.
+and delete the `xiaoyi-rc-win` certificates from `LocalMachine\Root` and
+`LocalMachine\TrustedPublisher` (and, after building locally, from
+`CurrentUser\My`).

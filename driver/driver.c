@@ -1,15 +1,7 @@
-// UMDF 2 upper filter above HidOverGatt for the XiaoYi_RC remote (ADR 2).
-//
-// The remote's Report Map is a valid descriptor followed by 0x00 padding,
-// which hidparse rejects. On IOCTL_HID_GET_DEVICE_DESCRIPTOR we read the
-// full report descriptor ourselves, trim the padding, and patch
-// wReportLength; IOCTL_HID_GET_REPORT_DESCRIPTOR is then answered from the
-// trimmed copy. Input reports (IOCTL_HID_READ_REPORT) have their buttons
-// remapped per the RemapXXX registry values (see remap.h). Everything else
-// is forwarded untouched.
+// UMDF 2 upper filter above HidOverGatt for the XiaoYi_RC remote. It makes the
+// remote's padded report descriptor acceptable and remaps its buttons (ADR 2).
 
 #include <windows.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <wdf.h>
 #include <hidport.h>
@@ -20,26 +12,39 @@
 #define MAX_REPORT_DESCRIPTOR 4096
 
 typedef struct _FILTER_CONTEXT {
+    // The filter's own device, which owns the registry keys.
+    WDFDEVICE Device;
+    // The HidOverGatt stack below, which gets every request the filter passes on.
+    WDFIOTARGET Target;
+    // The trimmed report descriptor that IOCTL_HID_GET_REPORT_DESCRIPTOR is
+    // answered from.
     UCHAR Descriptor[MAX_REPORT_DESCRIPTOR];
-    ULONG Length;      // trimmed length; 0 until a trimmed copy is held
+    // Length of the trimmed copy in Descriptor, or 0 while none is held.
+    ULONG TrimmedLength;
 } FILTER_CONTEXT, *PFILTER_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(FILTER_CONTEXT, GetFilterContext)
 
+// The outcome of reading the minidriver's report descriptor and trimming it.
+typedef struct _DESCRIPTOR_READ {
+    // The descriptor length that the minidriver's HID_DESCRIPTOR states.
+    ULONG OriginalLength;
+    NTSTATUS Status;
+    ULONG Bytes;
+    // The length without the padding, or 0 when the read failed.
+    ULONG TrimmedLength;
+} DESCRIPTOR_READ;
+
 DRIVER_INITIALIZE DriverEntry;
 EVT_WDF_DRIVER_DEVICE_ADD EvtDeviceAdd;
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL EvtIoDeviceControl;
-EVT_WDF_IO_QUEUE_IO_INTERNAL_DEVICE_CONTROL EvtIoInternalDeviceControl;
 
-static void Log(const char *fmt, ...)
+// Opens the devnode's Device Parameters\XiaoYiRcFilter key, which holds the
+// filter's settings and diagnostics.
+static NTSTATUS OpenParametersKey(WDFDEVICE Device, ACCESS_MASK Access, WDFKEY *Key)
 {
-    char buf[256];
-    va_list args;
-
-    va_start(args, fmt);
-    _vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, args);
-    va_end(args);
-    OutputDebugStringA(buf);
+    return WdfDeviceOpenRegistryKey(Device, PLUGPLAY_REGKEY_DEVICE | WDF_REGKEY_DEVICE_SUBKEY,
+                                    Access, WDF_NO_OBJECT_ATTRIBUTES, Key);
 }
 
 // Leave a trace under the devnode's Device Parameters for diagnosis.
@@ -48,18 +53,19 @@ static void Record(WDFDEVICE Device, PCWSTR Name, ULONG Value)
     WDFKEY key;
     UNICODE_STRING name;
 
-    if (NT_SUCCESS(WdfDeviceOpenRegistryKey(Device, PLUGPLAY_REGKEY_DEVICE | WDF_REGKEY_DEVICE_SUBKEY,
-                                            KEY_SET_VALUE, WDF_NO_OBJECT_ATTRIBUTES, &key))) {
+    if (NT_SUCCESS(OpenParametersKey(Device, KEY_SET_VALUE, &key))) {
         RtlInitUnicodeString(&name, Name);
         WdfRegistryAssignULong(key, &name, Value);
         WdfRegistryClose(key);
     }
 }
 
-// Build the button map from DWORD values "Remap<usage hex>" = target usage
-// (0 = drop), e.g. RemapE9 = 0xCD sends Play/Pause for Volume Up. Read on
-// every press so changes apply without restarting the device.
-static void LoadRemap(WDFDEVICE Device, unsigned char Map[REMAP_BUTTONS])
+// Builds the button map from the DWORD values under the devnode's Device
+// Parameters. A value named Remap<usage hex> holds the usage that button sends
+// instead, as RemapSet takes it. For example, RemapE9 = 0xCD sends Play/Pause
+// for Volume Up. configure.ps1 writes these values, and
+// tests/protocol_test.ps1 checks that the two agree.
+static void LoadRemap(WDFDEVICE Device, REMAP_MAP *Map)
 {
     WDFKEY key;
     WCHAR nameBuf[16];
@@ -68,8 +74,7 @@ static void LoadRemap(WDFDEVICE Device, unsigned char Map[REMAP_BUTTONS])
     int i;
 
     RemapInit(Map);
-    if (!NT_SUCCESS(WdfDeviceOpenRegistryKey(Device, PLUGPLAY_REGKEY_DEVICE | WDF_REGKEY_DEVICE_SUBKEY,
-                                             KEY_READ, WDF_NO_OBJECT_ATTRIBUTES, &key))) {
+    if (!NT_SUCCESS(OpenParametersKey(Device, KEY_READ, &key))) {
         return;
     }
     for (i = 0; i < REMAP_BUTTONS; i++) {
@@ -96,6 +101,7 @@ NTSTATUS EvtDeviceAdd(WDFDRIVER Driver, PWDFDEVICE_INIT DeviceInit)
     WDF_OBJECT_ATTRIBUTES attributes;
     WDF_IO_QUEUE_CONFIG queueConfig;
     WDFDEVICE device;
+    PFILTER_CONTEXT ctx;
     NTSTATUS status;
 
     UNREFERENCED_PARAMETER(Driver);
@@ -107,110 +113,143 @@ NTSTATUS EvtDeviceAdd(WDFDRIVER Driver, PWDFDEVICE_INIT DeviceInit)
     if (!NT_SUCCESS(status)) {
         return status;
     }
-    Record(device, L"XiaoYiRcDeviceAdded", 1);
+    ctx = GetFilterContext(device);
+    ctx->Device = device;
+    ctx->Target = WdfDeviceGetIoTarget(device);
 
-    // hidclass sends internal IOCTLs; take them whichever way mshidumdf
-    // delivers them.
+    // mshidumdf delivers hidclass's internal IOCTLs as regular device control
+    // (ADR 2). The internal callback is a safety net in case that changes.
     WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(&queueConfig, WdfIoQueueDispatchParallel);
     queueConfig.EvtIoDeviceControl = EvtIoDeviceControl;
-    queueConfig.EvtIoInternalDeviceControl = EvtIoInternalDeviceControl;
+    queueConfig.EvtIoInternalDeviceControl = EvtIoDeviceControl;
     return WdfIoQueueCreate(device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, WDF_NO_HANDLE);
+}
+
+// Sends the request on to Target as it came in, and completes it with the
+// send's status when the send fails. Completion, when given, runs when the
+// target completes the request.
+static void SendOrComplete(WDFREQUEST Request, WDFIOTARGET Target, PWDF_REQUEST_SEND_OPTIONS Options,
+                           PFN_WDF_REQUEST_COMPLETION_ROUTINE Completion)
+{
+    WdfRequestFormatRequestUsingCurrentType(Request);
+    if (Completion != NULL) {
+        WdfRequestSetCompletionRoutine(Request, Completion, WDF_NO_CONTEXT);
+    }
+    if (!WdfRequestSend(Request, Target, Options)) {
+        WdfRequestComplete(Request, WdfRequestGetStatus(Request));
+    }
 }
 
 static void ForwardAndForget(WDFREQUEST Request, WDFIOTARGET Target)
 {
     WDF_REQUEST_SEND_OPTIONS options;
 
-    WdfRequestFormatRequestUsingCurrentType(Request);
     WDF_REQUEST_SEND_OPTIONS_INIT(&options, WDF_REQUEST_SEND_OPTION_SEND_AND_FORGET);
-    if (!WdfRequestSend(Request, Target, &options)) {
-        WdfRequestComplete(Request, WdfRequestGetStatus(Request));
-    }
+    SendOrComplete(Request, Target, &options, NULL);
 }
 
-// Read the untrimmed report descriptor from the minidriver into the context
-// and keep the trimmed length if trimming changes anything.
-static void LoadTrimmedDescriptor(WDFDEVICE Device, WDFIOTARGET Target, BOOLEAN Internal,
-                                  PFILTER_CONTEXT Ctx, ULONG OrigLength)
+static BOOLEAN HasTrimmedDescriptor(const FILTER_CONTEXT *Ctx)
 {
+    return Ctx->TrimmedLength != 0;
+}
+
+// Checks whether the read succeeded and trimming shortened the descriptor.
+static BOOLEAN DescriptorWasTrimmed(const DESCRIPTOR_READ *Read)
+{
+    return Read->TrimmedLength != 0 && Read->TrimmedLength != Read->OriginalLength;
+}
+
+// Reads the minidriver's untrimmed report descriptor into Ctx->Descriptor and
+// trims it. The status is STATUS_INVALID_BUFFER_SIZE when OriginalLength is 0
+// or does not fit the context.
+static DESCRIPTOR_READ ReadTrimmedDescriptor(PFILTER_CONTEXT Ctx, ULONG OriginalLength)
+{
+    DESCRIPTOR_READ read = { OriginalLength, STATUS_INVALID_BUFFER_SIZE, 0, 0 };
     WDF_MEMORY_DESCRIPTOR output;
     ULONG_PTR bytes = 0;
-    ULONG trimmed;
-    NTSTATUS status;
 
-    Ctx->Length = 0;
-    Record(Device, L"XiaoYiRcOriginalLength", OrigLength);
-    if (OrigLength == 0 || OrigLength > sizeof(Ctx->Descriptor)) {
-        return;
+    if (OriginalLength == 0 || OriginalLength > sizeof(Ctx->Descriptor)) {
+        return read;
     }
 
-    WDF_MEMORY_DESCRIPTOR_INIT_BUFFER(&output, Ctx->Descriptor, OrigLength);
+    WDF_MEMORY_DESCRIPTOR_INIT_BUFFER(&output, Ctx->Descriptor, OriginalLength);
     // UMDF cannot send internal IOCTLs, so this goes down as a regular one.
-    UNREFERENCED_PARAMETER(Internal);
-    status = WdfIoTargetSendIoctlSynchronously(Target, WDF_NO_HANDLE,
-                                               IOCTL_HID_GET_REPORT_DESCRIPTOR,
-                                               NULL, &output, NULL, &bytes);
-    Record(Device, L"XiaoYiRcReadStatus", (ULONG)status);
-    Record(Device, L"XiaoYiRcReadBytes", (ULONG)bytes);
-    if (!NT_SUCCESS(status) || bytes != OrigLength) {
-        Log("xiaoyi-rc: own report descriptor read failed: 0x%08X, %Iu bytes\n",
-            status, bytes);
-        return;
+    read.Status = WdfIoTargetSendIoctlSynchronously(Ctx->Target, WDF_NO_HANDLE,
+                                                    IOCTL_HID_GET_REPORT_DESCRIPTOR,
+                                                    NULL, &output, NULL, &bytes);
+    read.Bytes = (ULONG)bytes;
+    if (NT_SUCCESS(read.Status) && read.Bytes == OriginalLength) {
+        read.TrimmedLength = (ULONG)TrimReportDescriptor(Ctx->Descriptor, OriginalLength);
     }
-
-    trimmed = (ULONG)TrimReportDescriptor(Ctx->Descriptor, OrigLength);
-    Log("xiaoyi-rc: report descriptor %lu -> %lu bytes\n", OrigLength, trimmed);
-    Record(Device, L"XiaoYiRcTrimmedLength", trimmed);
-    if (trimmed != OrigLength) {
-        Ctx->Length = trimmed;
-    }
+    return read;
 }
 
-static void HandleGetDeviceDescriptor(WDFDEVICE Device, WDFREQUEST Request, WDFIOTARGET Target,
-                                      BOOLEAN Internal, PFILTER_CONTEXT Ctx)
+static void RecordDescriptorRead(WDFDEVICE Device, const DESCRIPTOR_READ *Read)
+{
+    Record(Device, L"XiaoYiRcOriginalLength", Read->OriginalLength);
+    Record(Device, L"XiaoYiRcReadStatus", (ULONG)Read->Status);
+    Record(Device, L"XiaoYiRcReadBytes", Read->Bytes);
+    Record(Device, L"XiaoYiRcTrimmedLength", Read->TrimmedLength);
+}
+
+// Returns the HID_DESCRIPTOR that a completed IOCTL_HID_GET_DEVICE_DESCRIPTOR
+// carries, or NULL when the request failed or returned no report descriptor.
+static PHID_DESCRIPTOR CompletedHidDescriptor(WDFREQUEST Request)
+{
+    WDFMEMORY memory;
+    PHID_DESCRIPTOR hidDesc;
+
+    if (!NT_SUCCESS(WdfRequestGetStatus(Request)) ||
+        WdfRequestGetInformation(Request) < sizeof(HID_DESCRIPTOR) ||
+        !NT_SUCCESS(WdfRequestRetrieveOutputMemory(Request, &memory))) {
+        return NULL;
+    }
+    hidDesc = (PHID_DESCRIPTOR)WdfMemoryGetBuffer(memory, NULL);
+    return hidDesc->bNumDescriptors >= 1 ? hidDesc : NULL;
+}
+
+static void HandleGetDeviceDescriptor(PFILTER_CONTEXT Ctx, WDFREQUEST Request)
 {
     WDF_REQUEST_SEND_OPTIONS options;
-    WDFMEMORY memory;
-    size_t size;
     PHID_DESCRIPTOR hidDesc;
+    DESCRIPTOR_READ read;
     NTSTATUS status;
 
     WdfRequestFormatRequestUsingCurrentType(Request);
     WDF_REQUEST_SEND_OPTIONS_INIT(&options, WDF_REQUEST_SEND_OPTION_SYNCHRONOUS);
-    WdfRequestSend(Request, Target, &options);
+    WdfRequestSend(Request, Ctx->Target, &options);
     status = WdfRequestGetStatus(Request);
-    Record(Device, L"XiaoYiRcDeviceDescriptorStatus", (ULONG)status);
+    Record(Ctx->Device, L"XiaoYiRcDeviceDescriptorStatus", (ULONG)status);
 
-    if (NT_SUCCESS(status) &&
-        NT_SUCCESS(WdfRequestRetrieveOutputMemory(Request, &memory))) {
-        hidDesc = (PHID_DESCRIPTOR)WdfMemoryGetBuffer(memory, &size);
-        if (size >= sizeof(HID_DESCRIPTOR) && hidDesc->bNumDescriptors >= 1) {
-            LoadTrimmedDescriptor(Device, Target, Internal, Ctx,
-                                  hidDesc->DescriptorList[0].wReportLength);
-            if (Ctx->Length != 0) {
-                hidDesc->DescriptorList[0].wReportLength = (USHORT)Ctx->Length;
-            }
+    hidDesc = CompletedHidDescriptor(Request);
+    if (hidDesc != NULL) {
+        Ctx->TrimmedLength = 0;
+        read = ReadTrimmedDescriptor(Ctx, hidDesc->DescriptorList[0].wReportLength);
+        RecordDescriptorRead(Ctx->Device, &read);
+        if (DescriptorWasTrimmed(&read)) {
+            Ctx->TrimmedLength = read.TrimmedLength;
+            hidDesc->DescriptorList[0].wReportLength = (USHORT)read.TrimmedLength;
         }
     }
 
     WdfRequestCompleteWithInformation(Request, status, WdfRequestGetInformation(Request));
 }
 
-static void HandleGetReportDescriptor(WDFREQUEST Request, WDFIOTARGET Target, PFILTER_CONTEXT Ctx)
+static void HandleGetReportDescriptor(PFILTER_CONTEXT Ctx, WDFREQUEST Request)
 {
     WDFMEMORY memory;
     NTSTATUS status;
 
-    if (Ctx->Length == 0) {
-        ForwardAndForget(Request, Target);
+    if (!HasTrimmedDescriptor(Ctx)) {
+        ForwardAndForget(Request, Ctx->Target);
         return;
     }
 
     status = WdfRequestRetrieveOutputMemory(Request, &memory);
     if (NT_SUCCESS(status)) {
-        status = WdfMemoryCopyFromBuffer(memory, 0, Ctx->Descriptor, Ctx->Length);
+        status = WdfMemoryCopyFromBuffer(memory, 0, Ctx->Descriptor, Ctx->TrimmedLength);
     }
-    WdfRequestCompleteWithInformation(Request, status, NT_SUCCESS(status) ? Ctx->Length : 0);
+    WdfRequestCompleteWithInformation(Request, status, NT_SUCCESS(status) ? Ctx->TrimmedLength : 0);
 }
 
 static void ReadReportComplete(WDFREQUEST Request, WDFIOTARGET Target,
@@ -219,20 +258,20 @@ static void ReadReportComplete(WDFREQUEST Request, WDFIOTARGET Target,
     WDFDEVICE device = WdfIoTargetGetDevice(Target);
     NTSTATUS status = Params->IoStatus.Status;
     ULONG_PTR length = Params->IoStatus.Information;
-    unsigned char map[REMAP_BUTTONS];
+    REMAP_MAP map;
     WDFMEMORY memory;
     unsigned char *report;
     size_t size;
 
     UNREFERENCED_PARAMETER(Context);
 
-    if (NT_SUCCESS(status) && length >= REMAP_REPORT_SIZE &&
-        NT_SUCCESS(WdfRequestRetrieveOutputMemory(Request, &memory))) {
+    if (NT_SUCCESS(status) && NT_SUCCESS(WdfRequestRetrieveOutputMemory(Request, &memory))) {
         report = (unsigned char *)WdfMemoryGetBuffer(memory, &size);
-        // Release reports are all zero and need no remap or registry read.
-        if (size >= REMAP_REPORT_SIZE && (report[1] | report[2] | report[3])) {
-            LoadRemap(device, map);
-            RemapReport(map, report, (unsigned long)length);
+        // Releases need no remap or registry read. A press reads the map anew
+        // so that registry changes apply without restarting the device.
+        if (length <= size && RemapIsPress(report, length)) {
+            LoadRemap(device, &map);
+            RemapReport(&map, report, length);
         }
     }
     WdfRequestCompleteWithInformation(Request, status, length);
@@ -240,48 +279,31 @@ static void ReadReportComplete(WDFREQUEST Request, WDFIOTARGET Target,
 
 static void ForwardReadReport(WDFREQUEST Request, WDFIOTARGET Target)
 {
-    WdfRequestFormatRequestUsingCurrentType(Request);
-    WdfRequestSetCompletionRoutine(Request, ReadReportComplete, WDF_NO_CONTEXT);
-    if (!WdfRequestSend(Request, Target, WDF_NO_SEND_OPTIONS)) {
-        WdfRequestComplete(Request, WdfRequestGetStatus(Request));
-    }
+    SendOrComplete(Request, Target, WDF_NO_SEND_OPTIONS, ReadReportComplete);
 }
 
-static void DispatchIoctl(WDFQUEUE Queue, WDFREQUEST Request, ULONG IoControlCode, BOOLEAN Internal)
-{
-    WDFDEVICE device = WdfIoQueueGetDevice(Queue);
-    WDFIOTARGET target = WdfDeviceGetIoTarget(device);
-    PFILTER_CONTEXT ctx = GetFilterContext(device);
-
-    switch (IoControlCode) {
-    case IOCTL_HID_GET_DEVICE_DESCRIPTOR:
-        Record(device, L"XiaoYiRcDeviceDescriptorInternal", Internal);
-        HandleGetDeviceDescriptor(device, Request, target, Internal, ctx);
-        break;
-    case IOCTL_HID_GET_REPORT_DESCRIPTOR:
-        HandleGetReportDescriptor(Request, target, ctx);
-        break;
-    case IOCTL_HID_READ_REPORT:
-        ForwardReadReport(Request, target);
-        break;
-    default:
-        ForwardAndForget(Request, target);
-        break;
-    }
-}
-
+// Takes both device control and internal device control requests (see
+// EvtDeviceAdd).
 VOID EvtIoDeviceControl(WDFQUEUE Queue, WDFREQUEST Request, size_t OutputBufferLength,
                         size_t InputBufferLength, ULONG IoControlCode)
 {
-    UNREFERENCED_PARAMETER(OutputBufferLength);
-    UNREFERENCED_PARAMETER(InputBufferLength);
-    DispatchIoctl(Queue, Request, IoControlCode, FALSE);
-}
+    PFILTER_CONTEXT ctx = GetFilterContext(WdfIoQueueGetDevice(Queue));
 
-VOID EvtIoInternalDeviceControl(WDFQUEUE Queue, WDFREQUEST Request, size_t OutputBufferLength,
-                                size_t InputBufferLength, ULONG IoControlCode)
-{
     UNREFERENCED_PARAMETER(OutputBufferLength);
     UNREFERENCED_PARAMETER(InputBufferLength);
-    DispatchIoctl(Queue, Request, IoControlCode, TRUE);
+
+    switch (IoControlCode) {
+    case IOCTL_HID_GET_DEVICE_DESCRIPTOR:
+        HandleGetDeviceDescriptor(ctx, Request);
+        break;
+    case IOCTL_HID_GET_REPORT_DESCRIPTOR:
+        HandleGetReportDescriptor(ctx, Request);
+        break;
+    case IOCTL_HID_READ_REPORT:
+        ForwardReadReport(Request, ctx->Target);
+        break;
+    default:
+        ForwardAndForget(Request, ctx->Target);
+        break;
+    }
 }

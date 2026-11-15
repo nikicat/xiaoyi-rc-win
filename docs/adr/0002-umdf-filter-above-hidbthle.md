@@ -37,7 +37,8 @@ every start and no re-pairing is needed after installing the filter.
   here: a lower filter under the devnode sees only the reflector's traffic,
   and an upper filter above `hidclass` never sees the descriptor IOCTLs.
 - **Framework:** UMDF 2, `UmdfLibraryVersion` no higher than the in-box
-  `2.15.0`.
+  `2.15.0`. Matching the in-box driver is a cautious choice. The hard limit is
+  the framework of the oldest Windows the INF targets (UMDF 2.25 on 1803).
 - **INF:** our own INF matching only
   `BTHLEDevice\{00001812-0000-1000-8000-00805f9b34fb}_Dev_VID&0100d2_PID&0580`,
   the same per-device pattern `hidbthle.inf` itself uses for Microsoft
@@ -62,9 +63,10 @@ every start and no re-pairing is needed after installing the filter.
   control requests, and our own downward read is a regular IOCTL too (UMDF
   cannot send internal ones).
 - **Everything else** passes through untouched.
-- **Diagnostics:** the filter records what it saw (original and trimmed
-  length, read status) as DWORDs under the devnode's
-  `Device Parameters\XiaoYiRcFilter` key.
+- **Diagnostics:** the filter records what it saw (the device descriptor
+  status, the original length, the read status and bytes, and the trimmed
+  length) as DWORDs under the devnode's `Device Parameters\XiaoYiRcFilter`
+  key.
 - **Child device:** as with any BLE HID device, the "HID-compliant consumer
   control device" child only exists while the remote is connected, so a
   sleeping remote shows the parent as OK with no child.

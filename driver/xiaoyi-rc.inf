@@ -1,5 +1,6 @@
-; xiaoyi-rc.inf - in-box HidOverGatt stack for the XiaoYi_RC remote with a
-; UMDF filter on top that trims the padded HID report descriptor (ADR 2).
+; xiaoyi-rc.inf - installs the in-box HidOverGatt stack for the XiaoYi_RC
+; remote, with our UMDF filter on top. The filter fixes the remote's report
+; descriptor and remaps its buttons (ADR 2).
 
 [Version]
 Signature   = "$WINDOWS NT$"

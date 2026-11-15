@@ -14,9 +14,10 @@ Sign the package catalog (`.cat`) with a self-signed code-signing certificate,
 install the certificate into `LocalMachine\Root` and
 `LocalMachine\TrustedPublisher`, and install with `pnputil /add-driver
 xiaoyi-rc.inf /install`. Don't enable `bcdedit /set testsigning on`.
-Only the catalog is signed: it holds the DLL's hash, and signing the DLL
-afterwards would change that hash. `install.ps1` does all of this and keeps
-the private key non-exportable in `CurrentUser\My`.
+Only the catalog is signed, not the DLL, and `sign.ps1` says why.
+`sign.ps1` signs the catalog and keeps the private key non-exportable in
+`CurrentUser\My`. `install.ps1` trusts the certificate and installs the
+package.
 
 Verified: PnP installs the package and `WUDFHost` loads the DLL with
 signature enforcement on and no test-signing mode.

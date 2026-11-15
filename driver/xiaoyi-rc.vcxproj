@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <KitVersion>10.0.28000.2526</KitVersion>
+    <!-- KitVersion: the SDK and WDK package version, which build.ps1 passes from packages.config -->
     <PackagesDir>$(MSBuildThisFileDirectory)..\packages\</PackagesDir>
   </PropertyGroup>
   <Import Project="$(PackagesDir)Microsoft.Windows.SDK.CPP.$(KitVersion)\build\native\Microsoft.Windows.SDK.cpp.props" />
