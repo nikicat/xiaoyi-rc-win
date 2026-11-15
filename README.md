@@ -40,13 +40,29 @@ See `docs/adr/` for the decisions and `.tasks/` for the work.
 
 ### Install a release
 
-1. Download `xiaoyi-rc-win-<version>.zip` from the
-   [releases](https://github.com/nikicat/xiaoyi-rc-win/releases) page. CI
-   builds it (`.github/workflows/build.yml`).
-2. Unblock it before extracting, so Windows lets the scripts run:
-   `Unblock-File .\xiaoyi-rc-win-<version>.zip`.
-3. Extract it, then run `.\install.ps1` from an elevated PowerShell in the
-   extracted folder.
+CI builds each release (`.github/workflows/build.yml`) and publishes it on
+the [releases](https://github.com/nikicat/xiaoyi-rc-win/releases) page.
+
+1. Open an elevated PowerShell. Press Win+X and choose **Terminal (Admin)**,
+   then accept the prompt.
+2. Paste these commands. Set `$v` to the release you want:
+
+   ```powershell
+   # Allow scripts in this window only; Windows blocks them by default.
+   Set-ExecutionPolicy -Scope Process Bypass -Force
+
+   $v = '0.1.0'
+   cd $env:USERPROFILE\Downloads
+   Invoke-WebRequest "https://github.com/nikicat/xiaoyi-rc-win/releases/download/v$v/xiaoyi-rc-win-v$v.zip" -OutFile "xiaoyi-rc-win-v$v.zip"
+   Unblock-File ".\xiaoyi-rc-win-v$v.zip"
+   Expand-Archive ".\xiaoyi-rc-win-v$v.zip" -DestinationPath . -Force
+   cd ".\xiaoyi-rc-win-v$v"
+   .\install.ps1
+   ```
+
+   If you downloaded the zip in a browser instead, start at `Unblock-File`.
+   It removes the "downloaded from the internet" mark from the zip, and so
+   from the scripts extracted from it.
 
 The script trusts the release's certificate (`xiaoyi-rc.cer`,
 `CN=xiaoyi-rc-win release`) in `LocalMachine\Root` and
@@ -73,7 +89,8 @@ signing`, whose private key is kept non-exportable in `CurrentUser\My`.
 ### Configure and uninstall
 
 To change what the buttons send, run `.\configure.ps1` from an elevated
-PowerShell, for example `.\configure.ps1 Big=PlayPause`. Run it with no
+PowerShell in the same folder (after `Set-ExecutionPolicy -Scope Process
+Bypass -Force` in a new window), for example `.\configure.ps1 Big=PlayPause`. Run it with no
 arguments to show the current mapping, or with `-Reset` to go back to the
 defaults. A change applies on the next press. The usages a button can send
 are the 19 in the remote's report; the script lists them if you give it an
