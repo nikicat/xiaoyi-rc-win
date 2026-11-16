@@ -1,6 +1,6 @@
 ---
 status: blocked
-deps: [Tnztdn, Txem0p]
+deps: [Txem0p]
 milestone: M2
 tags: [windows, driver, rust]
 ---

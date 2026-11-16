@@ -40,3 +40,27 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create $env:GITHUB_REF_NAME (Get-Item dist\*.zip).FullName --generate-notes
+
+  # The Rust port (ADR 6). It is built and packaged for testing; releases ship
+  # the C driver until milestone M4.
+  build-rust:
+    runs-on: windows-2025-vs2026
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build and test
+        run: .\build.ps1 -Driver Rust
+
+      - name: Sign with a one-off certificate
+        run: .\sign.ps1 -Ephemeral -TimestampUrl http://timestamp.digicert.com
+
+      - name: Assemble zip
+        run: .\package.ps1 -Version "rust-$($env:GITHUB_SHA.Substring(0, 7))"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: xiaoyi-rc-win-rust
+          path: dist/*.zip

@@ -2,3 +2,4 @@
 /packages/
 /tools/
 /dist/
+/driver-rs/target/

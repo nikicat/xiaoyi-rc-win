@@ -1,6 +1,5 @@
 ---
-status: blocked
-deps: [Tnztdn]
+status: todo
 milestone: M3
 tags: [rust, upstream]
 ---
@@ -19,3 +18,12 @@ there, so that we can drop the fork (ADR 6).
 ## Next
 - Ask on issue #167 or the `wdf` branch which repository and branch they
   want UMDF pull requests against, before sending the first one.
+
+## State
+On `nikicat/windows-drivers-rs` branch `umdf-filter` (2026-11-16, 6acba8c), as one
+commit; split it into one pull request per fix:
+- `IRQL::current` calls `KeGetCurrentIrql`, so `wdf` did not compile for
+  UMDF at all; now KMDF only.
+- New: `DeviceInit::set_filter`, `Request::format_using_current_type`,
+  `Request::send_and_forget`.
+- Missing, not needed by us: `evt_io_internal_device_control`.

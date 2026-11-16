@@ -32,6 +32,7 @@
     <DriverType>UMDF</DriverType>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
     <UMDF_VERSION_MAJOR>2</UMDF_VERSION_MAJOR>
+    <!-- build.ps1 -Driver Rust passes 33, the version driver-rs targets (ADR 6) -->
     <UMDF_VERSION_MINOR>15</UMDF_VERSION_MINOR>
     <SignMode>Off</SignMode>
     <!-- stampinf dates DriverVer in local time; east of UTC that is "the future" -->
@@ -59,8 +60,10 @@
   <ItemGroup>
     <Inf Include="xiaoyi-rc.inf" />
   </ItemGroup>
+  <!-- RustDll: the DLL build.ps1 -Driver Rust packages instead of this project's -->
   <ItemGroup>
-    <FilesToPackage Include="$(TargetPath)" />
+    <FilesToPackage Include="$(TargetPath)" Condition="'$(RustDll)' == ''" />
+    <FilesToPackage Include="$(RustDll)" Condition="'$(RustDll)' != ''" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Import Project="$(PackagesDir)Microsoft.Windows.SDK.CPP.$(KitVersion)\build\native\Microsoft.Windows.SDK.cpp.targets" />

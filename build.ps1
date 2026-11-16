@@ -1,6 +1,10 @@
 # Build the driver package into build\<Configuration>\xiaoyi-rc\ and run the
 # unit tests. README ("Build from source") lists the toolchain it needs.
-param([ValidateSet('Release', 'Debug')] [string]$Configuration = 'Release')
+param(
+    [ValidateSet('Release', 'Debug')] [string]$Configuration = 'Release',
+    # Rust packages driver-rs instead of driver\ (ADR 6), with the same INF.
+    [ValidateSet('C', 'Rust')] [string]$Driver = 'C'
+)
 
 # Native tools are checked by exit code; 'Stop' would also abort on their stderr.
 $ErrorActionPreference = 'Continue'
@@ -32,9 +36,28 @@ $vs = Invoke-Native 'vswhere' {
 if (-not $vs) { throw "No Visual Studio with the Windows Driver Kit build-tools component found" }
 $env:PATH = "$(Split-Path $vswhere);$env:PATH"   # vcvars64.bat calls vswhere
 
+# The vcxproj stamps the INF and builds the catalog for either DLL. It always
+# rebuilds, so a package never mixes the stamping of the other driver.
+$packageProps = @()
+if ($Driver -eq 'Rust') {
+    $env:LIBCLANG_PATH = Get-LibclangDir
+    $env:WDKContentRoot = Get-MergedKitRoot
+    $cargoProfile = $Configuration.ToLower()
+    $profileFlag = if ($Configuration -eq 'Release') { '--release' } else { '' }
+    Invoke-Native 'driver-rs build' {
+        cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && cd /d `"$root\driver-rs`" && cargo build --locked $profileFlag"
+    }
+    # The INF names the binary xiaoyi-rc.dll; Cargo can only name it xiaoyi_rc.dll.
+    $rustDll = Join-Path $root "build\rust\$Configuration\xiaoyi-rc.dll"
+    New-Item -ItemType Directory -Force (Split-Path $rustDll) | Out-Null
+    Copy-Item (Join-Path $root "driver-rs\target\$cargoProfile\xiaoyi_rc.dll") $rustDll
+    $umdfMinor = ([regex]::Match((Get-Content -Raw (Join-Path $root 'driver-rs\Cargo.toml')), 'target-umdf-version-minor\s*=\s*(\d+)')).Groups[1].Value
+    $packageProps = @("-p:RustDll=$rustDll", "-p:UMDF_VERSION_MINOR=$umdfMinor")
+}
+
 Invoke-Native 'driver build' {
     & "$vs\MSBuild\Current\Bin\amd64\MSBuild.exe" (Join-Path $root 'driver\xiaoyi-rc.vcxproj') `
-        -p:Configuration=$Configuration -p:Platform=x64 -p:KitVersion=$(Get-KitVersion) -nologo -v:minimal
+        -p:Configuration=$Configuration -p:Platform=x64 -p:KitVersion=$(Get-KitVersion) @packageProps -t:Rebuild -nologo -v:minimal
 }
 
 $testDir = Join-Path $root "build\test"

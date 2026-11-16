@@ -22,3 +22,60 @@ function Get-KitVersion {
 function Get-SdkPackageDir {
     Join-Path $packagesDir "$sdkPackageId.$(Get-KitVersion)"
 }
+
+# Returns the folder with libclang.dll, which bindgen needs to read the WDK
+# headers for driver-rs. Only libclang and clang's own headers are taken from
+# the pinned LLVM installer, so nothing is installed system-wide.
+function Get-LibclangDir {
+    $version = '17.0.6'   # the version windows-drivers-rs asks for
+    $sha256 = '89DC351AF8E8FA1CAFC6B48411E608AA9457C930A10F984AAD5D21AB020165B2'
+    $dir = Join-Path $PSScriptRoot "tools\llvm-$version"
+    $libclang = Join-Path $dir 'bin\libclang.dll'
+    if (Test-Path $libclang) { return Split-Path $libclang }
+    $installer = Join-Path $PSScriptRoot "tools\LLVM-$version-win64.exe"
+    if (-not (Test-Path $installer)) {
+        New-Item -ItemType Directory -Force (Split-Path $installer) | Out-Null
+        Invoke-WebRequest "https://github.com/llvm/llvm-project/releases/download/llvmorg-$version/LLVM-$version-win64.exe" -OutFile $installer
+    }
+    if ((Get-FileHash $installer -Algorithm SHA256).Hash -ne $sha256) {
+        Remove-Item $installer
+        throw "$installer does not match the pinned SHA-256 and was deleted"
+    }
+    # The installer is an NSIS archive, which 7-Zip extracts.
+    $7z = (Get-Command 7z -ErrorAction SilentlyContinue).Source
+    if (-not $7z) { $7z = Join-Path $env:ProgramFiles '7-Zip\7z.exe' }
+    Invoke-Native 'extracting libclang' {
+        & $7z x $installer "-o$dir" 'bin\libclang.dll' "lib\clang\$($version.Split('.')[0])\include\*" -y | Out-Null
+    }
+    Split-Path $libclang
+}
+
+# Returns a kit root laid out like an installed WDK, for wdk-build's
+# WDKContentRoot. The NuGet packages split it in three (WDK, SDK headers, SDK
+# x64 libraries) with no file in common, so they are copied into one folder.
+function Get-MergedKitRoot {
+    $version = Get-KitVersion
+    $root = Join-Path $PSScriptRoot "build\kit-$version"
+    $stamp = Join-Path $root '.complete'
+    if (Test-Path $stamp) { return $root }
+    $sources = @(
+        "Microsoft.Windows.WDK.x64.$version\c"
+        "$sdkPackageId.$version\c"
+    )
+    foreach ($source in $sources) {
+        foreach ($dir in 'Include', 'Lib') {
+            $from = Join-Path $packagesDir "$source\$dir"
+            if (-not (Test-Path $from)) { continue }
+            # robocopy exit codes below 8 mean success.
+            robocopy $from (Join-Path $root $dir) /E /NFL /NDL /NJH /NJS /NP | Out-Null
+            if ($LASTEXITCODE -ge 8) { throw "copying $source\$dir failed" }
+        }
+    }
+    # The x64 package has the libraries as <area>\x64, under Lib\<SDK version>.
+    $sdkVersion = (Get-ChildItem (Join-Path $root 'Include') -Directory | Where-Object Name -Match '^\d').Name
+    robocopy (Join-Path $packagesDir "$sdkPackageId.x64.$version\c") (Join-Path $root "Lib\$sdkVersion") /E /NFL /NDL /NJH /NJS /NP | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw "copying the SDK x64 libraries failed" }
+    $global:LASTEXITCODE = 0
+    New-Item -ItemType File $stamp | Out-Null
+    $root
+}

@@ -86,6 +86,10 @@ package (`sign.ps1`). It uses a local certificate, `CN=xiaoyi-rc-win test
 signing`, whose private key is kept non-exportable in `CurrentUser\My`.
 `.\package.ps1 -Version <v>` builds the same zip CI does.
 
+`.\build.ps1 -Driver Rust` packages the Rust port in `driver-rs\` instead
+(ADR 6), which so far only passes requests through. It also needs Rust
+(rustup) and 7-Zip; it downloads a pinned LLVM for libclang into `tools\`.
+
 ### Configure and uninstall
 
 To change what the buttons send, run `.\configure.ps1` from an elevated
