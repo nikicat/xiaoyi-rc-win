@@ -47,6 +47,10 @@ if ($Driver -eq 'Rust') {
     Invoke-Native 'driver-rs build' {
         cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && cd /d `"$root\driver-rs`" && cargo build --locked $profileFlag"
     }
+    # The Rust twins of trim_test and remap_test below.
+    Invoke-Native 'driver-rs test' {
+        cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && cd /d `"$root\driver-rs`" && cargo test --locked -p xiaoyi-rc-report"
+    }
     # The INF names the binary xiaoyi-rc.dll; Cargo can only name it xiaoyi_rc.dll.
     $rustDll = Join-Path $root "build\rust\$Configuration\xiaoyi-rc.dll"
     New-Item -ItemType Directory -Force (Split-Path $rustDll) | Out-Null

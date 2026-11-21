@@ -1,13 +1,12 @@
 ---
-status: blocked
-deps: [Txem0p]
+status: todo
 milestone: M2
 tags: [driver, rust, ci]
 ---
 # Fuzz the Rust trim and remap with cargo fuzz
 
 ## Goal
-`cargo fuzz` targets for the trim on arbitrary descriptors and for the
+`cargo fuzz` targets, in `driver-rs/report`, for the trim on arbitrary descriptors and for the
 remap on arbitrary reports, lengths and maps. This takes over the fuzzing
 part of Tq8vn5 (ADR 6).
 

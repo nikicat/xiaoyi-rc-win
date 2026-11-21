@@ -1,6 +1,5 @@
 ---
-status: blocked
-deps: [Txem0p]
+status: todo
 milestone: M2
 tags: [windows, driver, rust]
 ---
@@ -12,6 +11,10 @@ with the trimmed descriptor, as `driver/driver.c` does, and the remote
 starts without Code 10.
 
 ## Next
+- Use `xiaoyi_rc_report::trim_descriptor`.
 - Port the read-once-then-serve flow (`ReadTrimmedDescriptor`,
   `CompletedHidDescriptor`) on top of `Request` and `IoTarget`, keeping the
   descriptor in the device context.
+- Parse the IOCTL code of `evt_io_device_control` into a private enum
+  (`GetDeviceDescriptor`, `GetReportDescriptor`, `ReadReport`, `Other`) where
+  the dispatch first reads it, not matched as bare `u32` constants.

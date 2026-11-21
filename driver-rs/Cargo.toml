@@ -6,6 +6,9 @@ description = "UMDF filter for the XiaoYi_RC remote, in safe Rust (ADR 6)"
 license = "MIT OR Apache-2.0"
 publish = false
 
+[workspace]
+members = ["report"]
+
 [package.metadata.wdk.driver-model]
 driver-type = "UMDF"
 umdf-version-major = 2
@@ -19,7 +22,9 @@ crate-type = ["cdylib"]
 test = false
 
 [build-dependencies]
-# Our fork of the wdf branch, with the UMDF fixes (ADR 6, task Tpkpmd).
+# smell: fork URL and rev spelled twice (here and `wdf`) — kept, Cargo cannot share
+# one git source between two dependency tables; pinned to our UMDF-fixed fork (ADR 6,
+# task Tpkpmd). Fix when `wdf` and `wdk-build` come from crates.io (M4, task Tvx5dx).
 wdk-build = { git = "https://github.com/nikicat/windows-drivers-rs", rev = "6acba8c4b2f16afaee003b2a29e30e6570538135" }
 
 [dependencies]
