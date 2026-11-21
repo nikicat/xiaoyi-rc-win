@@ -1,6 +1,5 @@
 ---
 status: blocked
-deps: [Tw4zdz]
 milestone: M4
 tags: [rust, upstream]
 ---

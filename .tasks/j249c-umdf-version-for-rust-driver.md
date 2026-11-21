@@ -1,7 +1,6 @@
 ---
-status: doing
-deps: [Tw4zdz]
-milestone: M1
+status: blocked
+milestone: M4
 tags: [windows, driver, rust]
 ---
 # UMDF version for the Rust driver
@@ -25,4 +24,5 @@ minimum Windows version (10.0.17134, UMDF 2.25) if we can (ADR 6).
   already sizes structures by `WdfClientVersionHigherThanFramework`.
 - The INF is stamped `UmdfLibraryVersion = 2.33.0`. Not verified: whether
   Windows 1803 (UMDF 2.25) loads it with that, or needs the INF to name the
-  minimum. That needs a 1803 machine or VM.
+  minimum. Blocked on a 1803 machine or VM; it must be settled before the
+  Rust driver ships (M4, Tm2tjr).
