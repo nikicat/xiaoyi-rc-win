@@ -1,7 +1,9 @@
 # Checks that remap.ps1, which configure.ps1 uses, names the registry values
 # the driver reads: the same usages in report order, the same value names, the
 # same "send nothing" target and the same subkey. The usages and the target are
-# checked in the Rust port (driver-rs\report) too.
+# checked in the Rust port (driver-rs\report) too, and so are the value names in
+# its driver (driver-rs\src\lib.rs). It also checks that both drivers record the
+# same diagnostic values.
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot
 . (Join-Path $root 'remap.ps1')
@@ -9,6 +11,7 @@ $remapC = Get-Content -Raw (Join-Path $root 'driver\remap.c')
 $remapH = Get-Content -Raw (Join-Path $root 'driver\remap.h')
 $driver = Get-Content -Raw (Join-Path $root 'driver\driver.c')
 $remapRs = Get-Content -Raw (Join-Path $root 'driver-rs\report\src\remap.rs')
+$driverRs = Get-Content -Raw (Join-Path $root 'driver-rs\src\lib.rs')
 $inf = Get-Content -Raw (Join-Path $root 'driver\xiaoyi-rc.inf')
 $failures = @()
 function Format-Usages([int[]]$list) { ($list | ForEach-Object { '0x{0:X}' -f $_ }) -join ', ' }
@@ -32,6 +35,22 @@ foreach ($usage in $driverUsages) {
     $name = $driverFormat -f $usage
     if ((Get-RemapValueName $usage) -cne $name) { $failures += "usage $(Format-Usages $usage) is $name in driver.c, $(Get-RemapValueName $usage) in remap.ps1" }
     if (-not (Test-RemapValueName $name)) { $failures += "Test-RemapValueName, which -Reset uses, rejects $name" }
+}
+
+# The Rust driver's only placeholder is {usage:X}, rendered as .NET's {0:X}.
+$rustFormat = [regex]::Match($driverRs, 'format!\("(Remap[^"]*)"').Groups[1].Value -replace '\{usage:X\}', '{0:X}'
+if (-not $rustFormat) { $failures += "value name format not found in driver-rs\src\lib.rs" }
+elseif ($rustFormat -cne $driverFormat) { $failures += "value name format is $rustFormat in lib.rs, $driverFormat in driver.c" }
+
+$recordedC = @([regex]::Matches($driver, 'Record\([^,]*,\s*L"(XiaoYiRc\w+)"') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+$recordedRs = @([regex]::Matches($driverRs, '\.set\("(XiaoYiRc\w+)"') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+if ($recordedC.Count -eq 0) { $failures += "diagnostic value names not found in driver.c" }
+elseif ($recordedRs.Count -eq 0) { $failures += "diagnostic value names not found in driver-rs\src\lib.rs" }
+else {
+    foreach ($only in Compare-Object $recordedC $recordedRs -CaseSensitive) {
+        $side = if ($only.SideIndicator -eq '<=') { 'driver.c' } else { 'lib.rs' }
+        $failures += "diagnostic value $($only.InputObject) is recorded only in $side"
+    }
 }
 
 $driverNone = [regex]::Match($remapH, '#define REMAP_USAGE_NONE\s+(\d+)').Groups[1].Value

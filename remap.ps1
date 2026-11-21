@@ -1,5 +1,6 @@
-# The registry values that configure.ps1 writes and the driver's LoadRemap
-# (driver/driver.c) reads. tests/protocol_test.ps1 checks them against the driver.
+# The registry values that configure.ps1 writes and the drivers read (LoadRemap
+# in driver/driver.c, Parameters::remap in driver-rs/src/lib.rs).
+# tests/protocol_test.ps1 checks them against both.
 
 # Usages the remote's report can carry, in report order (RemapUsages in driver/remap.c).
 $usages = [ordered]@{

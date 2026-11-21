@@ -1,6 +1,5 @@
 ---
-status: blocked
-deps: [T4zxmj]
+status: todo
 milestone: M2
 tags: [windows, driver, rust]
 ---

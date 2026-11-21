@@ -25,10 +25,10 @@ test = false
 # smell: fork URL and rev spelled twice (here and `wdf`) — kept, Cargo cannot share
 # one git source between two dependency tables; pinned to our UMDF-fixed fork (ADR 6,
 # task Tpkpmd). Fix when `wdf` and `wdk-build` come from crates.io (M4, task Tvx5dx).
-wdk-build = { git = "https://github.com/nikicat/windows-drivers-rs", rev = "4c5e4d25137cd11e1e8932d04481529d06936219" }
+wdk-build = { git = "https://github.com/nikicat/windows-drivers-rs", rev = "ae5cbf30f481443133f4674aed5c4d78f0156ac1" }
 
 [dependencies]
-wdf = { git = "https://github.com/nikicat/windows-drivers-rs", rev = "4c5e4d25137cd11e1e8932d04481529d06936219" }
+wdf = { git = "https://github.com/nikicat/windows-drivers-rs", rev = "ae5cbf30f481443133f4674aed5c4d78f0156ac1" }
 xiaoyi-rc-report = { path = "report" }
 
 [profile.dev]
