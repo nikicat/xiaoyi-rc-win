@@ -84,10 +84,13 @@ Tasks carry these in their `milestone:` field.
 - We depend on an unreleased, unstable API. A redesign upstream means
   rework, which pinning delays but does not avoid. The C driver keeps
   shipping until M4, so users are not affected.
-- The minimum UMDF version may rise. windows-drivers-rs is tested with
-  UMDF 2.33; the INF targets Windows 10 1803, which has UMDF 2.25. If `wdf`
-  cannot be built for 2.25, the INF's minimum Windows version rises with the
-  UMDF version the Rust driver needs (task Tj249c).
+- The Rust driver needs Windows 11. It is built for UMDF 2.33, the version
+  windows-drivers-rs is tested with, which first shipped in Windows 11 21H2
+  (10.0.22000); Windows 10 stops at 2.31. Targeting 2.25 failed to build, and
+  a 2.33 build that declares a 2.25 minimum could not be tested without a
+  Windows 10 1803 machine (task Tj249c, 2026-11-22). So `build.ps1 -Driver
+  Rust` packages the INF with its models raised from 10.0.17134 (1803) to
+  10.0.22000. The C driver keeps 1803 until it is deleted at M4.
 - The build needs LLVM (libclang for bindgen) and cargo-wdk locally and in
   CI, next to the WDK.
 - Hardening the C driver (Tq8vn5) is worth less now: only static analysis

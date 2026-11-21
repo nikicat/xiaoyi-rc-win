@@ -12,9 +12,8 @@ members = ["report"]
 [package.metadata.wdk.driver-model]
 driver-type = "UMDF"
 umdf-version-major = 2
+# UMDF 2.33 needs Windows 11, the Rust package's minimum (ADR 6).
 target-umdf-version-minor = 33
-# Loads on UMDF 2.25 (Windows 10 1803), the INF's minimum (task Tj249c).
-minimum-umdf-version-minor = 25
 
 [lib]
 crate-type = ["cdylib"]

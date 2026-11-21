@@ -56,7 +56,14 @@ if ($Driver -eq 'Rust') {
     New-Item -ItemType Directory -Force (Split-Path $rustDll) | Out-Null
     Copy-Item (Join-Path $root "driver-rs\target\$cargoProfile\xiaoyi_rc.dll") $rustDll
     $umdfMinor = ([regex]::Match((Get-Content -Raw (Join-Path $root 'driver-rs\Cargo.toml')), 'target-umdf-version-minor\s*=\s*(\d+)')).Groups[1].Value
-    $packageProps = @("-p:RustDll=$rustDll", "-p:UMDF_VERSION_MINOR=$umdfMinor")
+    # UMDF 2.33 first shipped in Windows 11 (10.0.22000), so the Rust package's
+    # INF targets it; the C driver's stays at 1803 (ADR 6).
+    $models = 'NTamd64.10.0...17134'
+    $inf = Get-Content -Raw (Join-Path $root 'driver\xiaoyi-rc.inf')
+    if (([regex]::Matches($inf, [regex]::Escape($models))).Count -ne 2) { throw "driver\xiaoyi-rc.inf no longer names $models twice" }
+    $rustInf = Join-Path $root 'build\rust\xiaoyi-rc.inf'
+    [IO.File]::WriteAllText($rustInf, $inf.Replace($models, 'NTamd64.10.0...22000'))
+    $packageProps = @("-p:RustDll=$rustDll", "-p:RustInf=$rustInf", "-p:UMDF_VERSION_MINOR=$umdfMinor")
 }
 
 Invoke-Native 'driver build' {
