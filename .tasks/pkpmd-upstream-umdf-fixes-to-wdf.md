@@ -18,12 +18,17 @@ there, so that we can drop the fork (ADR 6).
 ## Next
 - Ask on issue #167 or the `wdf` branch which repository and branch they
   want UMDF pull requests against, before sending the first one.
+- From /unsmell (2026-11-21): `Request::send_asynchronously` still calls
+  `WdfRequestSend` inline. Give the private `send` helper `Option` flags
+  (None for null options), so that all three send methods share it.
 
 ## State
-On `nikicat/windows-drivers-rs` branch `umdf-filter` (2026-11-16, 6acba8c), as one
-commit; split it into one pull request per fix:
+On `nikicat/windows-drivers-rs` branch `umdf-filter` (2026-11-21, 4c5e4d2), in two
+commits; split it into one pull request per fix:
 - `IRQL::current` calls `KeGetCurrentIrql`, so `wdf` did not compile for
   UMDF at all; now KMDF only.
 - New: `DeviceInit::set_filter`, `Request::format_using_current_type`,
   `Request::send_and_forget`.
+- New in 4c5e4d2 (task Tecjn4): `Request::send_synchronously`, sharing a
+  private `send` helper with `send_and_forget`.
 - Missing, not needed by us: `evt_io_internal_device_control`.
