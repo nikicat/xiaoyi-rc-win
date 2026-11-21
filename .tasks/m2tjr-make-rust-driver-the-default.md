@@ -1,6 +1,5 @@
 ---
-status: blocked
-deps: [Tbvzts]
+status: todo
 milestone: M4
 tags: [windows, driver, rust, ci]
 ---
@@ -12,5 +11,10 @@ release later, `driver/`, the C unit tests and the C half of
 `protocol_test.ps1` are deleted, and so is Tq8vn5 if it is still open.
 
 ## Next
+- Before the release, confirm with WinDbg (`!wdfkd.wdfdriverinfo` in
+  WUDFHost) that the verifier settings under
+  `WUDF\Services\XiaoYiRcFilter\Parameters\Wdf` take effect. Under them
+  `tools-src/cycle.ps1` and presses were clean (task Tbvzts), but no debugger
+  was there to show the verifier was on.
 - Update README (build requirements), ADR 2 (the filter's language) and
   ADR 6's status.
