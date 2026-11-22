@@ -2,6 +2,7 @@
 //! no button has a path of its own (ADR 7, "Layers").
 
 use std::collections::BTreeSet;
+use std::time::Duration;
 
 use crate::device::{Button, Buttons};
 use crate::time::Time;
@@ -121,8 +122,20 @@ impl History {
         self.0.retain(|event| !events.contains(event));
     }
 
-    pub(crate) fn keep(&mut self, events: &EventSet) {
-        self.0.retain(|event| events.contains(event));
+    /// Keeps the events of `claimed`, and every event of a button whose series
+    /// has not ended by `now`. A series ends once its button is up and no press
+    /// has followed its last release within `window`. So the taps of a series
+    /// that no gesture can claim send nothing until it ends, and do not start
+    /// a series of their own (ADR 7, "Gestures").
+    pub(crate) fn keep(&mut self, claimed: &EventSet, now: Time, window: Duration) {
+        let last = |button: Button| self.0.iter().rev().find(|e| e.button == button).copied();
+        let ongoing: Vec<Button> = Button::all()
+            .filter(|&button| {
+                last(button).is_some_and(|e| e.edge == Edge::Press || now < e.at + window)
+            })
+            .collect();
+        self.0
+            .retain(|event| claimed.contains(event) || ongoing.contains(&event.button));
     }
 }
 
@@ -156,24 +169,36 @@ mod tests {
     }
 
     #[test]
-    fn removes_and_keeps_claimed_events() {
+    fn removes_claimed_events() {
         let mut tracker = Tracker::default();
         let mut history = History::default();
         history.push(tracker.track(buttons(&[VOLUME_UP]), ms(0)));
         history.push(tracker.track(buttons(&[]), ms(1)));
         history.push(tracker.track(buttons(&[VOLUME_DOWN]), ms(2)));
-        let ids = |events: &[Event]| -> EventSet { events.iter().map(|e| e.id).collect() };
-        let second = ids(&history.events()[1..2]);
+        let second: EventSet = history.events()[1..2].iter().map(|e| e.id).collect();
         history.remove(&second);
         assert_eq!(
             history.events().iter().map(|e| e.at).collect::<Vec<_>>(),
             [ms(0), ms(2)]
         );
-        let last = ids(&history.events()[1..]);
-        history.keep(&last);
+    }
+
+    #[test]
+    fn keeps_claimed_events_and_unclaimed_ones_until_their_series_ends() {
+        let mut tracker = Tracker::default();
+        let mut history = History::default();
+        history.push(tracker.track(buttons(&[VOLUME_UP]), ms(0)));
+        history.push(tracker.track(buttons(&[]), ms(100)));
+        history.push(tracker.track(buttons(&[VOLUME_DOWN]), ms(200)));
+        history.push(tracker.track(buttons(&[]), ms(300)));
+        let small: EventSet = history.events()[2..].iter().map(|e| e.id).collect();
+        let window = Duration::from_millis(300);
+        history.keep(&small, ms(399), window);
+        assert_eq!(history.events().len(), 4);
+        history.keep(&small, ms(400), window);
         assert_eq!(
             history.events().iter().map(|e| e.at).collect::<Vec<_>>(),
-            [ms(2)]
+            [ms(200), ms(300)]
         );
     }
 }

@@ -130,12 +130,20 @@ pub(crate) struct Contender {
     pub(crate) key: Option<Key>,
 }
 
-/// The gestures of the settings, in priority order (ADR 7, "Gestures").
-pub(crate) struct Gestures(Vec<Contender>);
+/// The gestures of the settings, in priority order, and the click window that
+/// ends their series (ADR 7, "Gestures").
+pub(crate) struct Gestures {
+    contenders: Vec<Contender>,
+    window: Duration,
+}
 
 impl Gestures {
     pub(crate) fn iter(&self) -> impl Iterator<Item = &Contender> {
-        self.0.iter()
+        self.contenders.iter()
+    }
+
+    pub(crate) fn window(&self) -> Duration {
+        self.window
     }
 }
 
@@ -149,7 +157,7 @@ pub struct Config {
 
 impl Config {
     /// The default click window (ADR 7, "The click window").
-    pub const WINDOW: Duration = Duration::from_millis(150);
+    pub const WINDOW: Duration = Duration::from_millis(200);
 
     /// Returns every gesture of the settings, the single tap of each button
     /// included, in priority order (ADR 7, "Gestures").
@@ -167,7 +175,10 @@ impl Config {
             taps: Taps::new(&binding.pattern, self.window, binding.fires(&all)),
             key: binding.key,
         };
-        Gestures(all.iter().map(contender).collect())
+        Gestures {
+            contenders: all.iter().map(contender).collect(),
+            window: self.window,
+        }
     }
 }
 

@@ -81,4 +81,4 @@ function ConvertFrom-GestureValue([string[]]$lines) {
 # The registry value that sets the click window in milliseconds, and the
 # window's default (Config::WINDOW in driver-rs/report/src/bindings.rs).
 $multiClickWindowValue = 'MultiClickMs'
-$multiClickWindowDefault = 150
+$multiClickWindowDefault = 200

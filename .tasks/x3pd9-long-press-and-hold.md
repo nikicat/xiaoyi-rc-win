@@ -1,6 +1,5 @@
 ---
-status: blocked
-deps: [Tk7wn2]
+status: todo
 tags: [windows, driver, rust]
 ---
 # Long-press gesture and hold behaviour
@@ -12,6 +11,16 @@ the small button keeps lowering the volume) and a long-press binding
 end a click series: click+long (one click, then press and hold), and
 possibly double-click+long, each with its own binding, e.g.
 `configure.ps1 Big:hold=Mute Big.Big:hold=Next`.
+
+## Wanted first (2026-11-22)
+Click+hold on either button repeats its volume key while held: Big
+(Volume Up) and Small (Volume Down). The user's setup is `E9 = CD` (Big
+tap: Play/Pause) and `E9 E9 = E2` (Big double: Mute). The second press of
+Big is a hold once it stays down `LongPressMs`, and a double click if it
+comes up sooner. The key then stays down until release, so Windows repeats
+it, like an uncontested single tap (ADR 7). A click+hold binding on Small
+makes Small's single tap contested, so it comes one click window late, and
+a plain hold of Small no longer repeats.
 
 ## Decisions
 - The two are exclusive per button: a long-press binding means the key is

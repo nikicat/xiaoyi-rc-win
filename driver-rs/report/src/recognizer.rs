@@ -236,6 +236,21 @@ mod tests {
     }
 
     #[test]
+    fn a_series_past_the_bindings_sends_nothing_until_it_ends() {
+        let mut remote = Remote::new(bound(&[
+            (&[BIG, BIG], MUTE),
+            (&[BIG, BIG, BIG], PLAY_PAUSE),
+        ]));
+        for tap in 0..7 {
+            remote.at(tap * 200, &[BIG]).at(tap * 200 + 100, &[]);
+            assert!(remote.sent().is_empty(), "tap {tap}");
+        }
+        assert!(remote.expire(2000).sent().is_empty());
+        remote.at(3000, &[BIG]).at(3100, &[]);
+        assert_eq!(remote.expire(3400).sent(), [report(&[BIG]), report(&[])]);
+    }
+
+    #[test]
     fn unbound_count_sends_nothing() {
         let mut remote = Remote::new(bound(&[(&[BIG, BIG, BIG], PREVIOUS)]));
         remote

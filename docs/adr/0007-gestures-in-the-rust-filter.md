@@ -71,8 +71,10 @@ framework.
   no gesture of higher priority has claimed one of its events. So `Big Big`,
   which claims the first click while it waits for a second, keeps `Big` from
   firing until the double click is ruled out. A gesture that fires consumes
-  the events it claimed. Events that no gesture claims are dropped and send
-  nothing, so that a miscounted series does no harm.
+  the events it claimed. Events that no gesture claims send nothing, so that
+  a miscounted series does no harm. They are dropped only once their series
+  ends, so that the taps after them in the same series do not start one of
+  their own: four fast clicks with a triple click bound send nothing.
 - **A contested series is decided when it ends.** A pattern that shares a
   button with another pattern answers *yes* only once no press has followed
   its last release within the click window, and *no* as soon as a press does
@@ -87,9 +89,18 @@ framework.
   span starts at a long-press time, so that it fires while held, and a chord
   is a step of two buttons pressed together.
 - **The click window** is measured from each release to the next press.
-  Its default is 150 ms: normal double clicks on the remote have about
-  100 ms from release to press, and 300 ms felt slow (2026-11-22).
-  `MultiClickMs` overrides it.
+  Its default is 200 ms: normal double clicks on the remote have about
+  100 ms from release to press, and 300 ms felt slow (2026-11-22). The
+  times are the reports' arrival times, because the remote's reports carry
+  none of their own, and the remote sends only in steps of about 50 ms. At
+  150 ms, one late step turned a fast triple click into a double
+  (2026-11-22). `MultiClickMs` overrides it.
+- **Fast series of the remote lose taps.** Even with every report
+  forwarded as it comes, the remote sometimes drops a release and the next
+  press, so that two fast taps arrive as one long press (logged on
+  2026-11-22, also with the filter of M2). The more taps a pattern has, the
+  more often it is missed: double clicks were reliable, triple clicks were
+  not.
 - **Taps are synthesized.** A gesture that fires sends a press report and a
   release report of its key, with the keys that are held at the time.
 - **Settings.** Every binding, single taps included, is a line of one

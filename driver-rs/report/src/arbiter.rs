@@ -31,7 +31,8 @@ pub(crate) struct Decision {
 }
 
 /// Returns what `gestures` decide at `now` (ADR 7, "Gestures"). Removes from
-/// `history` the events of the gestures that fire and the events that none claims.
+/// `history` the events of the gestures that fire, and the events that none
+/// claims once their series has ended.
 pub(crate) fn decide(gestures: &Gestures, history: &mut History, now: Time) -> Decision {
     let mut firings = Vec::new();
     loop {
@@ -41,7 +42,7 @@ pub(crate) fn decide(gestures: &Gestures, history: &mut History, now: Time) -> D
                 firings.extend(firing);
             }
             Round::Settled(claims) => {
-                history.keep(&claims.taken);
+                history.keep(&claims.taken, now, gestures.window());
                 let deadline = claims.deadline;
                 return Decision { firings, deadline };
             }
