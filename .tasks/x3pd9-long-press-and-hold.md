@@ -1,21 +1,36 @@
 ---
 status: blocked
 deps: [Tk7wn2]
-tags: [windows, driver]
+tags: [windows, driver, rust]
 ---
 # Long-press gesture and hold behaviour
 
 ## Goal
 Per button, choose between hold-to-repeat (today's behaviour, e.g. holding
 the small button keeps lowering the volume) and a long-press binding
-(e.g. big long = Mute) after `LongPressMs` (~600 ms).
+(e.g. big long = Mute) after `LongPressMs` (~600 ms). A long press can also
+end a click series: click+long (one click, then press and hold), and
+possibly double-click+long, each with its own binding, e.g.
+`configure.ps1 Big:hold=Mute Big.Big:hold=Next`.
 
 ## Decisions
 - The two are exclusive per button: a long-press binding means the key is
   not sent while held.
+- Rust driver only, like Tk7wn2 (ADR 6).
+- A series that ends in a hold is counted like one that ends in a release:
+  N clicks then a hold is "N clicks + long", and a count with no binding
+  sends nothing, as in Tk7wn2.
 
 ## Next
-Build on Tk7wn2's state machine and timer. Measured (ADR 2): the remote
-sends one down report and keeps the bit set until release; it does not
-repeat. So a long press is detected by the timer firing while the button is
-still down, and hold-to-repeat is Windows' own behaviour on a held bit.
+Build on Tk7wn2's pattern model (ADR 7): a hold is a `Step` in
+`driver-rs/report/src/gesture.rs` whose `down` span starts at `LongPressMs`.
+An uncontested pattern then fires while the button is still held, and a
+contested one once its series ends. Measured (ADR 2): the remote sends one
+down report and keeps the bit set until release; it does not repeat.
+- Decide whether a long press on a contested button fires once `LongPressMs`
+  passes or on release. Firing while held is the usual choice.
+- A syntax for hold steps in `configure.ps1` (e.g. `Big:hold`,
+  `Big.Big:hold`) and in the `Gestures` lines of `settings.ps1` and
+  `Bindings::set_line` in `driver-rs/report/src/bindings.rs`, checked by
+  `tests/protocol_test.ps1`.
+- Chords (two buttons down at once) as a step of a button set.

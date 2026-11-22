@@ -1,0 +1,13 @@
+# Each case is a whole Gestures value, a tab, and the lines of it that the
+# driver keeps, as stored and in order. Both sides separate lines with " | ",
+# and a case that keeps no line ends at its tab.
+E9 E9 = E2 | E9 E9 = CD	E9 E9 = CD
+E9 = CD | e9 = b5	e9 = b5
+E9 = CD | E9 = CD	E9 = CD
+EA = CD | EA = 0	EA = 0
+E9 E9 = CD | E9 E9 = 0	E9 E9 = CD
+E9 E9 = CD | E9 E9 = 30	E9 E9 = CD
+EA = 0 | E9 E9 = E2 | EA = CD	E9 E9 = E2 | EA = CD
+E9 E9 = E2 | E9 E9 E9 = CD | E9 E9 = B5	E9 E9 E9 = CD | E9 E9 = B5
+E9 EA = E2 | EA E9 = CD	E9 EA = E2 | EA E9 = CD
+E9 E9 = 0 | 30 = E2	

@@ -62,7 +62,7 @@ there, so that we can drop the fork (ADR 6).
     default. Make it `Option<Duration>`.
 
 ## State
-On `nikicat/windows-drivers-rs` branch `umdf-filter` (2026-11-21, ae5cbf3), in three
+On `nikicat/windows-drivers-rs` branch `umdf-filter` (2026-11-22, 0a5f614), in four
 commits; split it into one pull request per fix:
 - `IRQL::current` calls `KeGetCurrentIrql`, so `wdf` did not compile for
   UMDF at all; now KMDF only.
@@ -73,4 +73,6 @@ commits; split it into one pull request per fix:
 - New in ae5cbf3 (task T4zxmj): `DeviceInstanceKeyType::DeviceSubkey`,
   `RegistryAccessRights::SetValue`, `RegistryKey::assign_u32`, and the NUL
   that `UnicodeStringBuf::from_str` now ends its buffer with (see Next).
+- New in 0a5f614 (task Tk7wn2): `RegistryKey::query_multi_string`
+  (`WdfRegistryQueryValue` for a `REG_MULTI_SZ` value).
 - Missing, not needed by us: `evt_io_internal_device_control`.

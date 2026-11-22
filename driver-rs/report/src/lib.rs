@@ -3,10 +3,21 @@
 
 #![forbid(unsafe_code)]
 
+mod arbiter;
+mod bindings;
+mod device;
+mod event;
+mod gesture;
 mod hid;
-mod remap;
+mod output;
+mod reads;
+mod recognizer;
+mod time;
 mod trim;
 
+pub use bindings::{Bindings, Config, LineError};
+pub use device::{InputReport, KeyReport, Usage};
 pub use hid::HidDescriptor;
-pub use remap::{InputReport, Remap, USAGES, UnknownUsage, Usage, remap_target};
-pub use trim::trim_descriptor;
+pub use reads::{Action, ReadState, SerialCompleter, Token};
+pub use recognizer::Recognizer;
+pub use time::Time;

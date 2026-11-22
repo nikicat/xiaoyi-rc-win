@@ -1,10 +1,6 @@
 # Build the driver package into build\<Configuration>\xiaoyi-rc\ and run the
 # unit tests. README ("Build from source") lists the toolchain it needs.
-param(
-    [ValidateSet('Release', 'Debug')] [string]$Configuration = 'Release',
-    # Rust packages driver-rs instead of driver\ (ADR 6), with the same INF.
-    [ValidateSet('C', 'Rust')] [string]$Driver = 'C'
-)
+param([ValidateSet('Release', 'Debug')] [string]$Configuration = 'Release')
 
 # Native tools are checked by exit code; 'Stop' would also abort on their stderr.
 $ErrorActionPreference = 'Continue'
@@ -36,54 +32,31 @@ $vs = Invoke-Native 'vswhere' {
 if (-not $vs) { throw "No Visual Studio with the Windows Driver Kit build-tools component found" }
 $env:PATH = "$(Split-Path $vswhere);$env:PATH"   # vcvars64.bat calls vswhere
 
-# The vcxproj stamps the INF and builds the catalog for either DLL. It always
-# rebuilds, so a package never mixes the stamping of the other driver.
-$packageProps = @()
-if ($Driver -eq 'Rust') {
-    $env:LIBCLANG_PATH = Get-LibclangDir
-    $env:WDKContentRoot = Get-MergedKitRoot
-    $cargoProfile = $Configuration.ToLower()
-    $profileFlag = if ($Configuration -eq 'Release') { '--release' } else { '' }
-    Invoke-Native 'driver-rs build' {
-        cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && cd /d `"$root\driver-rs`" && cargo build --locked $profileFlag"
+$env:LIBCLANG_PATH = Get-LibclangDir
+$env:WDKContentRoot = Get-MergedKitRoot
+$cargoProfile = $Configuration.ToLower()
+$profileFlag = if ($Configuration -eq 'Release') { '--release' } else { '' }
+# Runs cargo with $Arguments in driver-rs, in the Visual Studio build
+# environment. Errors with "<What> failed" when cargo exits nonzero.
+function Invoke-Cargo([string]$What, [string]$Arguments) {
+    Invoke-Native $What {
+        cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && cd /d `"$root\driver-rs`" && cargo $Arguments"
     }
-    # The Rust twins of trim_test and remap_test below.
-    Invoke-Native 'driver-rs test' {
-        cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && cd /d `"$root\driver-rs`" && cargo test --locked -p xiaoyi-rc-report"
-    }
-    # The INF names the binary xiaoyi-rc.dll; Cargo can only name it xiaoyi_rc.dll.
-    $rustDll = Join-Path $root "build\rust\$Configuration\xiaoyi-rc.dll"
-    New-Item -ItemType Directory -Force (Split-Path $rustDll) | Out-Null
-    Copy-Item (Join-Path $root "driver-rs\target\$cargoProfile\xiaoyi_rc.dll") $rustDll
-    $umdfMinor = ([regex]::Match((Get-Content -Raw (Join-Path $root 'driver-rs\Cargo.toml')), 'target-umdf-version-minor\s*=\s*(\d+)')).Groups[1].Value
-    # UMDF 2.33 first shipped in Windows 11 (10.0.22000), so the Rust package's
-    # INF targets it; the C driver's stays at 1803 (ADR 6).
-    $models = 'NTamd64.10.0...17134'
-    $inf = Get-Content -Raw (Join-Path $root 'driver\xiaoyi-rc.inf')
-    if (([regex]::Matches($inf, [regex]::Escape($models))).Count -ne 2) { throw "driver\xiaoyi-rc.inf no longer names $models twice" }
-    $rustInf = Join-Path $root 'build\rust\xiaoyi-rc.inf'
-    [IO.File]::WriteAllText($rustInf, $inf.Replace($models, 'NTamd64.10.0...22000'))
-    $packageProps = @("-p:RustDll=$rustDll", "-p:RustInf=$rustInf", "-p:UMDF_VERSION_MINOR=$umdfMinor")
 }
+Invoke-Cargo 'driver-rs build' "build --locked $profileFlag"
+Invoke-Cargo 'driver-rs test' 'test --locked -p xiaoyi-rc-report'
+# The INF names the binary xiaoyi-rc.dll; Cargo can only name it xiaoyi_rc.dll.
+$rustDll = Join-Path $root "build\rust\$Configuration\xiaoyi-rc.dll"
+New-Item -ItemType Directory -Force (Split-Path $rustDll) | Out-Null
+Copy-Item (Join-Path $root "driver-rs\target\$cargoProfile\xiaoyi_rc.dll") $rustDll
 
+# The vcxproj stamps the INF and builds the catalog around the Rust DLL.
 Invoke-Native 'driver build' {
     & "$vs\MSBuild\Current\Bin\amd64\MSBuild.exe" (Join-Path $root 'driver\xiaoyi-rc.vcxproj') `
-        -p:Configuration=$Configuration -p:Platform=x64 -p:KitVersion=$(Get-KitVersion) @packageProps -t:Rebuild -nologo -v:minimal
+        -p:Configuration=$Configuration -p:Platform=x64 -p:KitVersion=$(Get-KitVersion) `
+        -p:RustDll=$rustDll -p:UMDF_VERSION_MINOR=$(Get-UmdfMinorVersion) -t:Rebuild -nologo -v:minimal
 }
 
-$testDir = Join-Path $root "build\test"
-New-Item -ItemType Directory -Force $testDir | Out-Null
-$tests = @(
-    @{ Name = 'trim_test'; Source = 'trim.c'; Args = @(Join-Path $root 'docs\report-map.bin') }
-    @{ Name = 'remap_test'; Source = 'remap.c'; Args = @() }
-)
-foreach ($t in $tests) {
-    $exe = Join-Path $testDir "$($t.Name).exe"
-    Invoke-Native "$($t.Name) build" {
-        cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && cl /nologo /W4 /WX /Fe`"$exe`" /Fo`"$testDir\\`" `"$root\tests\$($t.Name).c`" `"$root\driver\$($t.Source)`""
-    }
-    Invoke-Native $t.Name { & $exe $t.Args }
-}
 Invoke-Native 'protocol_test' {
     powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'tests\protocol_test.ps1')
 }

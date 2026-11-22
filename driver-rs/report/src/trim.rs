@@ -3,7 +3,7 @@ const END_COLLECTION: u8 = 0xC0;
 /// Returns `desc` without its trailing zero bytes, or None when it has none or
 /// what remains does not end in End Collection. The zeros are safe to drop
 /// because a valid descriptor ends in End Collection (ADR 2).
-pub fn trim_descriptor(desc: &[u8]) -> Option<&[u8]> {
+pub(crate) fn trim_descriptor(desc: &[u8]) -> Option<&[u8]> {
     let end = desc.iter().rposition(|&b| b != 0x00).map_or(0, |i| i + 1);
     match desc[..end].last() {
         Some(&END_COLLECTION) if end < desc.len() => Some(&desc[..end]),

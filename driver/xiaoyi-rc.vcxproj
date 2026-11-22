@@ -3,6 +3,9 @@
   <PropertyGroup>
     <!-- KitVersion: the SDK and WDK package version, which build.ps1 passes from packages.config -->
     <PackagesDir>$(MSBuildThisFileDirectory)..\packages\</PackagesDir>
+    <!-- UMDF_VERSION_MINOR: the version that driver-rs targets, which build.ps1 passes from
+         driver-rs/Cargo.toml (ADR 6). Read here, before the WDK props default it to 15. -->
+    <UmdfMinorGiven>$(UMDF_VERSION_MINOR)</UmdfMinorGiven>
   </PropertyGroup>
   <Import Project="$(PackagesDir)Microsoft.Windows.SDK.CPP.$(KitVersion)\build\native\Microsoft.Windows.SDK.cpp.props" />
   <Import Project="$(PackagesDir)Microsoft.Windows.SDK.CPP.x64.$(KitVersion)\build\native\Microsoft.Windows.SDK.cpp.x64.props" />
@@ -25,15 +28,11 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
-    <UseDebugLibraries Condition="'$(Configuration)' == 'Debug'">true</UseDebugLibraries>
-    <UseDebugLibraries Condition="'$(Configuration)' == 'Release'">false</UseDebugLibraries>
     <PlatformToolset>WindowsUserModeDriver10.0</PlatformToolset>
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <DriverType>UMDF</DriverType>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
     <UMDF_VERSION_MAJOR>2</UMDF_VERSION_MAJOR>
-    <!-- build.ps1 -Driver Rust passes 33, the version driver-rs targets (ADR 6) -->
-    <UMDF_VERSION_MINOR>15</UMDF_VERSION_MINOR>
     <SignMode>Off</SignMode>
     <!-- stampinf dates DriverVer in local time; east of UTC that is "the future" -->
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
@@ -43,29 +42,17 @@
     <OutDir>$(MSBuildThisFileDirectory)..\build\$(Configuration)\</OutDir>
     <IntDir>$(MSBuildThisFileDirectory)..\build\obj\$(Configuration)\</IntDir>
   </PropertyGroup>
-  <ItemDefinitionGroup>
-    <ClCompile>
-      <WarningLevel>Level4</WarningLevel>
-      <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>$(KM_IncludePath);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
-  </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="driver.c" />
-    <ClCompile Include="remap.c" />
-    <ClCompile Include="trim.c" />
-    <ClInclude Include="remap.h" />
-    <ClInclude Include="trim.h" />
+    <Inf Include="xiaoyi-rc.inf" />
   </ItemGroup>
-  <!-- RustDll, RustInf: the DLL and INF build.ps1 -Driver Rust packages instead of this project's -->
+  <!-- RustDll: the driver-rs DLL that build.ps1 builds; this project only packages it -->
   <ItemGroup>
-    <Inf Include="xiaoyi-rc.inf" Condition="'$(RustInf)' == ''" />
-    <Inf Include="$(RustInf)" Condition="'$(RustInf)' != ''" />
+    <FilesToPackage Include="$(RustDll)" />
   </ItemGroup>
-  <ItemGroup>
-    <FilesToPackage Include="$(TargetPath)" Condition="'$(RustDll)' == ''" />
-    <FilesToPackage Include="$(RustDll)" Condition="'$(RustDll)' != ''" />
-  </ItemGroup>
+  <Target Name="RequireBuildScriptProperties" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(UmdfMinorGiven)' == ''" Text="UMDF_VERSION_MINOR is not set; build with build.ps1, which passes it from driver-rs/Cargo.toml" />
+    <Error Condition="'$(RustDll)' == ''" Text="RustDll is not set; build with build.ps1, which builds driver-rs and passes its DLL" />
+  </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Import Project="$(PackagesDir)Microsoft.Windows.SDK.CPP.$(KitVersion)\build\native\Microsoft.Windows.SDK.cpp.targets" />
 </Project>

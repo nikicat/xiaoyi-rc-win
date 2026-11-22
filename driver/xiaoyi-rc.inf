@@ -1,6 +1,6 @@
 ; xiaoyi-rc.inf - installs the in-box HidOverGatt stack for the XiaoYi_RC
 ; remote, with our UMDF filter on top. The filter fixes the remote's report
-; descriptor and remaps its buttons (ADR 2).
+; descriptor and maps its buttons to gestures (ADR 2, ADR 7).
 
 [Version]
 Signature   = "$WINDOWS NT$"
@@ -21,9 +21,9 @@ xiaoyi-rc.dll = 1
 DefaultDestDir = 13
 
 [Manufacturer]
-%ProviderName% = Models,NTamd64.10.0...17134
+%ProviderName% = Models,NTamd64.10.0...22000
 
-[Models.NTamd64.10.0...17134]
+[Models.NTamd64.10.0...22000]
 %DeviceDesc% = XiaoYiRc, BTHLEDevice\{00001812-0000-1000-8000-00805f9b34fb}_Dev_VID&0100d2_PID&0580
 
 [XiaoYiRc.NT]

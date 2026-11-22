@@ -1,6 +1,7 @@
 # 6. Port the driver to Rust on Microsoft's prototype `wdf` crate
 
-Status: accepted (plan; nothing ported yet)
+Status: accepted. M1 and M2 are done, and the C driver was deleted on
+2026-11-22, ahead of M3 (ADR 7).
 
 ## Context
 
@@ -41,29 +42,28 @@ to become the official one.
 
 - **Port the filter to Rust on `wdf`**, and send the UMDF fixes it needs
   upstream. Our filter becomes a small real UMDF filter for that crate.
-- **In this repository**, as `driver-rs/`, next to `driver/`. The two
-  drivers are built from one INF, one registry contract (checked by
-  `tests/protocol_test.ps1`), the same signing, packaging, install and
-  configure scripts, CI and release flow, and the same ADRs and tasks.
-  Only the upstream fixes live elsewhere, in a fork of windows-drivers-rs.
+- **In this repository**, as `driver-rs/`. It shares the INF in `driver/`,
+  the registry contract (checked by `tests/protocol_test.ps1`), the
+  signing, packaging, install and configure scripts, CI and release flow,
+  and the ADRs and tasks. Only the upstream fixes live elsewhere, in a fork
+  of windows-drivers-rs.
 - **Drop-in binary:** the Rust driver builds `xiaoyi-rc.dll` with the same
   UMDF service, so the INF and everything after the build step stay as they
-  are. `build.ps1 -Driver C|Rust` picks which one is packaged; C stays the
-  default until milestone M4.
+  are.
 - **Pinned dependency:** `wdf` and `wdk-*` come from our fork by git commit
   hash, like the Actions in CI, and move to crates.io when `wdf` is
   published there.
 - **No `unsafe` in our code:** `driver-rs` has `#![deny(unsafe_code)]`. The
   only allowed exception is the exported entry point, if `wdf` does not
   provide a macro for it. Anything else that needs `unsafe` is a missing
-  wrapper and goes to the fork as a `wdf` change. The descriptor trim and
-  the remap are plain Rust modules with `#![forbid(unsafe_code)]` and
-  `cargo test`, independent of WDF.
+  wrapper and goes to the fork as a `wdf` change. The filter's logic that
+  does not need WDF is a plain crate, `driver-rs/report`, with
+  `#![forbid(unsafe_code)]` and `cargo test`.
 - **Same behaviour:** the Rust driver must pass the existing test vectors
   (`docs/report-map.bin`, the reports in ADR 2) and the on-device checks the
   C driver passed before it ships.
-- **New features after M2 land in Rust only.** Gestures (Tk7wn2, Tx3pd9)
-  started before then are written in C and ported.
+- **New features after M2 land in Rust only**, and so do the gestures
+  (Tk7wn2, Tx3pd9).
 
 ### Milestones
 
@@ -75,31 +75,26 @@ Tasks carry these in their `milestone:` field.
   verified on the remote and under the UMDF verifier.
 - **M3, upstream:** the UMDF fixes from M1 and M2 sent as pull requests to
   the `wdf` branch, or to `microsoft/windows-drivers-rs` once it lands there.
-- **M4, switch:** the Rust driver is the default and ships in a release; one
-  release later the C driver is deleted. Moving to `wdf` from crates.io
-  happens here too, but only once Microsoft publishes it.
+- **M4, release:** the Rust driver ships in a release. Moving to `wdf` from
+  crates.io happens here too, but only once Microsoft publishes it.
 
 ## Consequences
 
 - We depend on an unreleased, unstable API. A redesign upstream means
-  rework, which pinning delays but does not avoid. The C driver keeps
-  shipping until M4, so users are not affected.
+  rework, which pinning delays but does not avoid. Users are affected now.
+  Settings made for the C driver are lost (ADR 7, "Consequences").
 - The Rust driver needs Windows 11. It is built for UMDF 2.33, the version
   windows-drivers-rs is tested with, which first shipped in Windows 11 21H2
   (10.0.22000); Windows 10 stops at 2.31. Targeting 2.25 failed to build, and
   a 2.33 build that declares a 2.25 minimum could not be tested without a
-  Windows 10 1803 machine (task Tj249c, 2026-11-22). So `build.ps1 -Driver
-  Rust` packages the INF with its models raised from 10.0.17134 (1803) to
-  10.0.22000. The C driver keeps 1803 until it is deleted at M4.
+  Windows 10 1803 machine (task Tj249c, 2026-11-22). So the INF's models
+  start at 10.0.22000.
 - The build needs LLVM (libclang for bindgen) and cargo-wdk locally and in
   CI, next to the WDK.
-- Hardening the C driver (Tq8vn5) is worth less now: only static analysis
-  and the verifier run still matter, for the releases before M4. The
-  fuzzing targets move to `cargo fuzz` on the Rust modules (Tab1n4).
+- The fuzzing targets move to `cargo fuzz` on `driver-rs/report` (Tab1n4).
 - ADR 5 is superseded.
 
 ## If this is wrong
 
-If `wdf` stalls or is abandoned, keep the safe Rust modules and link them
-into the C driver as a static library (ADR 5, option 2), and harden the rest
-of the C driver as in Tq8vn5.
+If `wdf` stalls or is abandoned, we write the missing wrappers in our fork
+of windows-drivers-rs.

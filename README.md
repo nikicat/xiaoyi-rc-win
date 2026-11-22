@@ -35,8 +35,9 @@ Remap with `linux/70-xiaoyi-rc.hwdb` → `/etc/udev/hwdb.d/`, then
 
 ## Windows (this repo's goal)
 
-A UMDF filter driver that trims the descriptor before `hidclass` parses it.
-See `docs/adr/` for the decisions and `.tasks/` for the work.
+A UMDF filter driver, written in Rust, that trims the descriptor before
+`hidclass` parses it, and adds gestures such as double clicks. It needs
+Windows 11. See `docs/adr/` for the decisions and `.tasks/` for the work.
 
 ### Install a release
 
@@ -78,27 +79,25 @@ small one Volume Down.
 
 Build with `.\build.ps1`. It needs VS Build Tools 2026 with the C++ tools,
 the Spectre-mitigated libs and the "Windows Driver Kit" build-tools
-component; the WDK and SDK come from NuGet. The package lands in
-`build\Release\xiaoyi-rc\`.
+component, plus Rust (rustup) and 7-Zip; the WDK and SDK come from NuGet,
+and a pinned LLVM for libclang is downloaded into `tools\`. The package
+lands in `build\Release\xiaoyi-rc\`.
 
 `.\install.ps1`, from an elevated PowerShell, then signs and installs the
 package (`sign.ps1`). It uses a local certificate, `CN=xiaoyi-rc-win test
 signing`, whose private key is kept non-exportable in `CurrentUser\My`.
 `.\package.ps1 -Version <v>` builds the same zip CI does.
 
-`.\build.ps1 -Driver Rust` packages the Rust port in `driver-rs\` instead
-(ADR 6). It also needs Rust
-(rustup) and 7-Zip; it downloads a pinned LLVM for libclang into `tools\`.
-
 ### Configure and uninstall
 
 To change what the buttons send, run `.\configure.ps1` from an elevated
 PowerShell in the same folder (after `Set-ExecutionPolicy -Scope Process
-Bypass -Force` in a new window), for example `.\configure.ps1 Big=PlayPause`. Run it with no
-arguments to show the current mapping, or with `-Reset` to go back to the
-defaults. A change applies on the next press. The usages a button can send
-are the 19 in the remote's report; the script lists them if you give it an
-unknown name.
+Bypass -Force` in a new window), for example `.\configure.ps1 Big=PlayPause`
+for a tap, or `.\configure.ps1 Big.Big=Mute` for a double click. Run it with
+no arguments to show the current mapping, or with `-Reset` to go back to the
+defaults; the comment at the top of the script lists every form. A change
+applies on the next press. The usages a button can send are the 19 in the
+remote's report; the script lists them if you give it an unknown name.
 
 To uninstall: `pnputil /enum-drivers` to find the `oemNN.inf` whose original
 name is `xiaoyi-rc.inf`, then `pnputil /delete-driver oemNN.inf /uninstall`,

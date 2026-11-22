@@ -22,7 +22,7 @@ New-Item -ItemType Directory -Force $stage | Out-Null
 $release = Get-PackageLayout $stage
 Copy-Item -Recurse $build.Package $release.Package
 Copy-Item $build.Cer $release.Cer
-Copy-Item (Join-Path $root 'install.ps1'), (Join-Path $root 'layout.ps1'), (Join-Path $root 'remap.ps1'),
+Copy-Item (Join-Path $root 'install.ps1'), (Join-Path $root 'layout.ps1'), (Join-Path $root 'settings.ps1'),
     (Join-Path $root 'configure.ps1'), (Join-Path $root 'README.md') $stage
 
 $zip = Join-Path $root "dist\$name.zip"

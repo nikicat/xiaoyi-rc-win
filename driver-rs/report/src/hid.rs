@@ -1,4 +1,4 @@
-use crate::trim_descriptor;
+use crate::trim::trim_descriptor;
 
 /// The HID descriptor that IOCTL_HID_GET_DEVICE_DESCRIPTOR returns (HID 1.11,
 /// section 6.2.1). It covers only the first nine bytes, which end with the
@@ -29,9 +29,9 @@ impl<'a> HidDescriptor<'a> {
         [*lo, *hi] = length.to_le_bytes();
     }
 
-    /// Trims `report` as [`trim_descriptor`] does, and makes this HID descriptor
-    /// state the trimmed length, so that hidclass asks for no more (ADR 2). Returns
-    /// None and changes nothing when `report` is not the stated length or has nothing to trim.
+    /// Drops the trailing zeros of `report`, and makes this HID descriptor state
+    /// the trimmed length, so that hidclass asks for no more (ADR 2). Returns None
+    /// and changes nothing when `report` is not the stated length or has nothing to trim.
     pub fn trim<'r>(&mut self, report: &'r [u8]) -> Option<&'r [u8]> {
         if report.len() != usize::from(self.report_length()) {
             return None;

@@ -1,5 +1,4 @@
-# Build-time helpers for build.ps1 and sign.ps1: the restored SDK and WDK
-# packages and native-tool calls. A release does not ship this file.
+# Build-time helpers. A release does not ship this file.
 
 # Runs a native command and throws "<What> failed" when it exits nonzero.
 function Invoke-Native([string]$What, [scriptblock]$Command) {
@@ -16,6 +15,14 @@ $sdkPackageId = 'Microsoft.Windows.SDK.CPP'
 function Get-KitVersion {
     ([xml](Get-Content $packagesConfig)).packages.package |
         Where-Object id -eq $sdkPackageId | Select-Object -ExpandProperty version
+}
+
+# Returns the UMDF 2 minor version that driver-rs\Cargo.toml targets (ADR 6).
+function Get-UmdfMinorVersion {
+    $toml = Get-Content -Raw (Join-Path $PSScriptRoot 'driver-rs\Cargo.toml')
+    $match = [regex]::Match($toml, 'target-umdf-version-minor\s*=\s*(\d+)')
+    if (-not $match.Success) { throw 'driver-rs\Cargo.toml has no target-umdf-version-minor' }
+    [int]$match.Groups[1].Value
 }
 
 # Returns the restored SDK package folder, which holds signtool.

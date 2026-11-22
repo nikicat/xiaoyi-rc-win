@@ -1,0 +1,41 @@
+# Each case is a Gestures line, a tab, and what the driver reads from it (ADR 7,
+# "Settings"). The line is taken as it is, spaces included. An accepted line
+# reads as itself in the form "E9 E9 = E2". A rejected one reads as the
+# LineError that rejects it, such as NoKey.
+E9 = CD	E9 = CD
+E9 = E9	E9 = E9
+E9 E9 = E2	E9 E9 = E2
+E9 EA E9 = B5	E9 EA E9 = B5
+EA = 0	EA = 0
+ E9 E9 E9=CD 	E9 E9 E9 = CD
+E9  E9   =   E2	E9 E9 = E2
+EA=0	EA = 0
+e9 = cd	E9 = CD
+00E9 = 0000000000E2	E9 = E2
++E9 = +E2	E9 = E2
+EA = +0	EA = 0
+EA = 00	EA = 0
+E9 E9 = 0	NoKey
+E9 EA = 00	NoKey
+E9 E9 = +0	NoKey
+EA 30 = 0	NoKey
+E9 E9	Syntax
+=	Syntax
+ = E2	Syntax
+E9 =	Syntax
+E9 x = E2	Syntax
+0xE9 = E2	Syntax
+E9 = 0xE2	Syntax
+0xE9 0xE9 = 0xE2	Syntax
+E9 = E2 CD	Syntax
+E9 = E2 = CD	Syntax
+++E9 = E2	Syntax
++ = E2	Syntax
+-E9 = E2	Syntax
+E9 = 100000000	Syntax
+30 = E2	UnknownUsage
+1E9 = E2	UnknownUsage
+E9 30 = E2	UnknownUsage
+E9 = 30	UnknownUsage
+E9 = FFFFFFFF	UnknownUsage
+30 = 0	UnknownUsage
