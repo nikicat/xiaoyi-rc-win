@@ -92,6 +92,13 @@ Tasks carry these in their `milestone:` field.
 - The build needs LLVM (libclang for bindgen) and cargo-wdk locally and in
   CI, next to the WDK.
 - The fuzzing targets move to `cargo fuzz` on `driver-rs/report` (Tab1n4).
+  CI runs each target for a fixed time from its committed seeds. The seeds
+  are built from `docs/report-map.bin`, `tests/gesture-lines.txt` and the
+  reports measured in ADR 2, and they are kept as a frozen starting corpus.
+  A crash input is committed
+  into its target's seeds, so every run replays it. On Windows, cargo fuzz
+  links only with the MSVC AddressSanitizer runtime, even with `-s none`
+  (2026-11-23).
 - ADR 5 is superseded.
 
 ## If this is wrong

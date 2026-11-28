@@ -1,0 +1,39 @@
+[package]
+name = "xiaoyi-rc-report-fuzz"
+version = "0.0.0"
+edition = "2024"
+description = "cargo fuzz targets for xiaoyi-rc-report (task Tab1n4)"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+# A workspace of its own: cargo fuzz builds it with nightly and sanitizers,
+# apart from the driver's workspace.
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+xiaoyi-rc-report = { path = ".." }
+
+[[bin]]
+name = "trim"
+path = "fuzz_targets/trim.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "set_line"
+path = "fuzz_targets/set_line.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "recognizer"
+path = "fuzz_targets/recognizer.rs"
+test = false
+doc = false
+bench = false

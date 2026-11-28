@@ -6,7 +6,7 @@ use crate::trim::trim_descriptor;
 pub struct HidDescriptor<'a>(&'a mut [u8; HidDescriptor::SIZE]);
 
 impl<'a> HidDescriptor<'a> {
-    const SIZE: usize = 9;
+    pub const SIZE: usize = 9;
     const NUM_DESCRIPTORS_OFFSET: usize = 5;
 
     /// Returns the HID descriptor at the start of `buf`. Returns None when `buf`

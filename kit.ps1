@@ -6,6 +6,26 @@ function Invoke-Native([string]$What, [scriptblock]$Command) {
     if ($LASTEXITCODE) { throw "$What failed" }
 }
 
+$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+
+# Returns the folder of the latest Visual Studio that has any of $Components.
+function Get-VsDir([string[]]$Components) {
+    $vs = Invoke-Native 'vswhere' {
+        & $vswhere -latest -products '*' -requiresAny -requires $Components -property installationPath
+    }
+    if (-not $vs) { throw "No Visual Studio with $($Components -join ' or ') found" }
+    $vs
+}
+
+# Runs cargo in the x64 build environment of the Visual Studio at $Vs.
+# Errors as Invoke-Native does.
+function Invoke-Cargo([string]$What, [string]$Vs, [string]$Dir, [string]$Arguments) {
+    # vcvars64.bat calls vswhere, which is not on PATH.
+    Invoke-Native $What {
+        & $env:ComSpec /c "set `"PATH=$(Split-Path $vswhere);%PATH%`" && `"$Vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && cd /d `"$Dir`" && cargo $Arguments"
+    }
+}
+
 # The folder build.ps1 restores the NuGet packages into, and the file that pins them.
 $packagesDir = Join-Path $PSScriptRoot 'packages'
 $packagesConfig = Join-Path $PSScriptRoot 'driver\packages.config'

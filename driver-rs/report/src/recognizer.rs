@@ -44,7 +44,8 @@ impl Recognizer {
     }
 
     /// Returns the time by which [`Self::expire`] must run, or None when no timer
-    /// is needed (ADR 7, "Gestures").
+    /// is needed (ADR 7, "Gestures"). After [`Self::report`] or [`Self::expire`]
+    /// at a time `now`, a returned time is later than `now`.
     pub fn deadline(&self) -> Option<Time> {
         self.deadline
     }

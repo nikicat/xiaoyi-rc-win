@@ -21,3 +21,4 @@ pub use hid::HidDescriptor;
 pub use reads::{Action, ReadState, SerialCompleter, Token};
 pub use recognizer::Recognizer;
 pub use time::Time;
+pub use trim::END_COLLECTION;

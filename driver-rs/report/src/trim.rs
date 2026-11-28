@@ -1,4 +1,5 @@
-const END_COLLECTION: u8 = 0xC0;
+/// The End Collection item (HID 1.11, section 6.2.2.4).
+pub const END_COLLECTION: u8 = 0xC0;
 
 /// Returns `desc` without its trailing zero bytes, or None when it has none or
 /// what remains does not end in End Collection. The zeros are safe to drop

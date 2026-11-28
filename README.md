@@ -88,6 +88,10 @@ package (`sign.ps1`). It uses a local certificate, `CN=xiaoyi-rc-win test
 signing`, whose private key is kept non-exportable in `CurrentUser\My`.
 `.\package.ps1 -Version <v>` builds the same zip CI does.
 
+`.\fuzz.ps1 [-Seconds <n>]` runs each `cargo fuzz` target of `driver-rs\report`
+for `<n>` seconds, as CI does. It needs the C++ AddressSanitizer
+component of the Build Tools.
+
 ### Configure and uninstall
 
 To change what the buttons send, run `.\configure.ps1` from an elevated

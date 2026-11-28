@@ -23,28 +23,16 @@ Invoke-Native 'nuget restore' {
     & $nuget restore $packagesConfig -PackagesDirectory $packagesDir -NonInteractive -Verbosity quiet
 }
 
-$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-# BuildTools is the Build Tools component; full VS (e.g. the GitHub runner) has DriverKit.
-$vs = Invoke-Native 'vswhere' {
-    & $vswhere -latest -products '*' -requiresAny `
-        -requires Component.Microsoft.Windows.DriverKit.BuildTools Component.Microsoft.Windows.DriverKit -property installationPath
-}
-if (-not $vs) { throw "No Visual Studio with the Windows Driver Kit build-tools component found" }
-$env:PATH = "$(Split-Path $vswhere);$env:PATH"   # vcvars64.bat calls vswhere
-
+# Build Tools installs the WDK as Component.Microsoft.Windows.DriverKit.BuildTools,
+# and full Visual Studio (as on the GitHub runner) as Component.Microsoft.Windows.DriverKit.
+$vs = Get-VsDir 'Component.Microsoft.Windows.DriverKit.BuildTools', 'Component.Microsoft.Windows.DriverKit'
 $env:LIBCLANG_PATH = Get-LibclangDir
 $env:WDKContentRoot = Get-MergedKitRoot
 $cargoProfile = $Configuration.ToLower()
 $profileFlag = if ($Configuration -eq 'Release') { '--release' } else { '' }
-# Runs cargo with $Arguments in driver-rs, in the Visual Studio build
-# environment. Errors with "<What> failed" when cargo exits nonzero.
-function Invoke-Cargo([string]$What, [string]$Arguments) {
-    Invoke-Native $What {
-        cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && cd /d `"$root\driver-rs`" && cargo $Arguments"
-    }
-}
-Invoke-Cargo 'driver-rs build' "build --locked $profileFlag"
-Invoke-Cargo 'driver-rs test' 'test --locked -p xiaoyi-rc-report'
+$driverRs = Join-Path $root 'driver-rs'
+Invoke-Cargo 'driver-rs build' $vs $driverRs "build --locked $profileFlag"
+Invoke-Cargo 'driver-rs test' $vs $driverRs 'test --locked -p xiaoyi-rc-report'
 # The INF names the binary xiaoyi-rc.dll; Cargo can only name it xiaoyi_rc.dll.
 $rustDll = Join-Path $root "build\rust\$Configuration\xiaoyi-rc.dll"
 New-Item -ItemType Directory -Force (Split-Path $rustDll) | Out-Null
